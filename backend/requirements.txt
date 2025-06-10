@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy
+asyncpg
+python-multipart
+pydantic-settings
+minio
+opencv-python
+numpy
+ultralytics
+python-dotenv
