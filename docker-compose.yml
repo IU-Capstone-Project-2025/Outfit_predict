@@ -35,6 +35,16 @@ services:
       - "8000:8000"
     networks: [api-net]
 
+  frontend:
+    build: ./frontend
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000" 
+    networks: [api-net]
+
 volumes:
   pgdata:
   minio-data:
