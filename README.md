@@ -3,6 +3,17 @@ Web-platform that helps users to decide which outfit to wear based on person's w
 
 ## Getting Started
 
+### Environment Setup
+
+1. Copy the example environment file:
+```bash
+cp .env.example .env
+```
+
+2. Update the `.env` file with your configuration values.
+
+### Running the Application
+
 To run the application using Docker Compose:
 
 ```bash
