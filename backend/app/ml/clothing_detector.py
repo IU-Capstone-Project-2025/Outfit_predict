@@ -9,7 +9,7 @@ def get_clothes_from_img(img_path):
     # read the image
     img = cv2.imread(img_path)
     # get the height and width for future calculations
-    
+
     img_height, img_width, _ = img.shape
     names = {
         0: 'sunglass',

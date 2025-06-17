@@ -2,7 +2,7 @@ import uvicorn
 from app.api.v1.endpoints import image as image_router
 from app.api.v1.endpoints import clothing as clothing_router
 from app.core.config import get_settings
-from app.db.database import Base, engine
+from app.db.database import Base, engine, vector_db
 from fastapi import FastAPI
 
 app = FastAPI(title="Picture Storage API")
