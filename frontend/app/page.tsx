@@ -101,7 +101,7 @@ export default function OutfitGeneratorLanding() {
                 id="file-upload"
               />
               <label htmlFor="file-upload">
-                <Button variant="outline" className="cursor-pointer rounded-full" asChild>
+                <Button variant="outline" className="cursor-pointer rounded-xl border border-gray-400 bg-white" asChild>
                   <span>Choose Files</span>
                 </Button>
               </label>
@@ -114,7 +114,7 @@ export default function OutfitGeneratorLanding() {
             <Button
               onClick={handleGenerateOutfits}
               size="lg"
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 rounded-full"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 rounded-xl border border-purple-400"
             >
               <Sparkles className="w-5 h-5 mr-2" />
               Generate Perfect Outfits
