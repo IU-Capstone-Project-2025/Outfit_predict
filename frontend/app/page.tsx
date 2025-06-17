@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { Upload, X, Shirt, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
@@ -10,6 +10,50 @@ import { Header } from "@/components/header"
 export default function OutfitGeneratorLanding() {
   const [files, setFiles] = useState<File[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null)
+  const [isMessageFadingOut, setIsMessageFadingOut] = useState(false)
+  const fadeOutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const showUploadMessage = useCallback((message: string) => {
+    if (fadeOutTimeoutRef.current) {
+      clearTimeout(fadeOutTimeoutRef.current) // Clear existing timeout if any
+    }
+    setUploadMessage(message)
+    setIsMessageFadingOut(false)
+
+    fadeOutTimeoutRef.current = setTimeout(() => {
+      setIsMessageFadingOut(true)
+      setTimeout(() => {
+        setUploadMessage(null)
+        setIsMessageFadingOut(false)
+      }, 500)
+    }, 2500)
+  }, [])
+
+  const uploadImage = useCallback(async (file: File) => {
+    const formData = new FormData()
+    formData.append("file", file)
+    // You can also append a description if needed, e.g., formData.append("description", "My clothing item")
+
+    try {
+      const response = await fetch("http://localhost:8000/api/v1/images/", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log("Upload successful:", result)
+        showUploadMessage(`Image "${file.name}" uploaded successfully!`)
+      } else {
+        console.error("Upload failed:", response.statusText)
+        showUploadMessage(`Failed to upload "${file.name}".`)
+      }
+    } catch (error) {
+      console.error("Error during upload:", error)
+      showUploadMessage(`Error uploading "${file.name}".`)
+    }
+  }, [showUploadMessage])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -26,29 +70,19 @@ export default function OutfitGeneratorLanding() {
     setIsDragOver(false)
 
     const droppedFiles = Array.from(e.dataTransfer.files).filter((file) => file.type === "image/jpeg")
-    setFiles((prev) => [...prev, ...droppedFiles])
-  }, [])
+    droppedFiles.forEach(uploadImage) // Upload each dropped image
+  }, [uploadImage])
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files).filter((file) => file.type === "image/jpeg")
-      setFiles((prev) => [...prev, ...selectedFiles])
+      selectedFiles.forEach(uploadImage) // Upload each selected image
     }
-  }, [])
+  }, [uploadImage])
 
   const removeFile = useCallback((index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index))
   }, [])
-
-  const handleGenerateOutfits = () => {
-    if (files.length === 0) {
-      alert("Please upload at least one clothing image first!")
-      return
-    }
-    // TODO Send the files to your backend
-    console.log("Generating outfits for:", files)
-    alert(`Generating outfits from ${files.length} clothing items!`)
-  }
 
   return (
     <>
@@ -78,7 +112,7 @@ export default function OutfitGeneratorLanding() {
           </div>
 
           {/* Upload Area */}
-          <div className="max-w-2xl mx-auto mb-8">
+          <div className="max-w-2xl mx-auto mb-8 relative">
             <div
               className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
                 isDragOver
@@ -94,7 +128,6 @@ export default function OutfitGeneratorLanding() {
               <p className="text-gray-500 mb-4">Drag and drop your photos here, or click to browse</p>
               <input
                 type="file"
-                multiple
                 accept="image/jpeg"
                 onChange={handleFileSelect}
                 className="hidden"
@@ -107,20 +140,14 @@ export default function OutfitGeneratorLanding() {
               </label>
               <p className="text-xs text-gray-400 mt-2">Supports JPG format only</p>
             </div>
-          </div>
 
-          {/* Generate Button */}
-          <div className="text-center">
-            <Button
-              onClick={handleGenerateOutfits}
-              size="lg"
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 rounded-xl border border-purple-400"
-            >
-              <Sparkles className="w-5 h-5 mr-2" />
-              Generate Perfect Outfits
-            </Button>
-            {files.length === 0 && (
-              <p className="text-sm text-gray-500 mt-2">Upload some clothing images to get started</p>
+            {/* Upload Message */}
+            {uploadMessage && (
+              <div
+                className={`absolute bottom-[-50px] left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-xl shadow-lg transition-opacity duration-500 ${isMessageFadingOut ? 'opacity-0' : 'opacity-100'} whitespace-nowrap`}
+              >
+                {uploadMessage}
+              </div>
             )}
           </div>
 
