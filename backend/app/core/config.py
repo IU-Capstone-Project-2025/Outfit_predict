@@ -1,5 +1,5 @@
 from functools import lru_cache
-
+import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     minio_secret_key: str = Field(..., env="MINIO_SECRET_KEY")
     minio_bucket: str = Field("images", env="MINIO_BUCKET")
     minio_secure: bool = Field(False, env="MINIO_SECURE")
+
+    # Storage
+    STORAGE_DIR: str = Field(default=os.path.join(os.getcwd(), "storage"))
 
     api_prefix: str = "/api/v1"
 
