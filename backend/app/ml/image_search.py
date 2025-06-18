@@ -1,7 +1,8 @@
 from PIL import Image
 import torch
 import clip
-from typing import List, Tuple
+import numpy as np
+from typing import List, Tuple, Set, Union
 from collections import Counter
 from app.storage.qdrant_client import QdrantService
 
@@ -25,26 +26,51 @@ class ImageSearchEngine:
         # Set model to evaluation mode
         self.model.eval()
 
-    def get_image_embedding(self, image: Image.Image) -> List[float]:
+    def get_image_embeddings(self, images: Union[Image.Image, List[Image.Image]], batch_size: int = 32) -> np.ndarray:
         """
-        Create embedding for a single image using CLIP model
+        Create embeddings for images using CLIP model
 
         Args:
-            image: PIL Image to create embedding for
+            images: Single PIL Image or list of PIL Images to create embeddings for
+            batch_size: Number of images to process in each batch (default: 32)
 
         Returns:
-            List of floats representing the image embedding
+            Numpy array of shape (num_images, embedding_dim) containing the image embeddings
         """
-        # Preprocess image and move to device
-        image_tensor = self.preprocess(image).unsqueeze(0).to(self.device)
+        # Convert single image to list for uniform processing
+        if isinstance(images, Image.Image):
+            images = [images]
 
-        # Get embedding
-        with torch.no_grad():
-            embedding = self.model.encode_image(image_tensor)
-            # Move to CPU and convert to list
-            embedding = embedding.cpu().numpy()[0].tolist()
+        if not images:
+            return np.array([])
 
-        return embedding
+        all_embeddings = []
+
+        # Process images in batches
+        for i in range(0, len(images), batch_size):
+            batch_images = images[i:i + batch_size]
+
+            # Preprocess all images in the batch
+            image_tensors = []
+            for image in batch_images:
+                image_tensor = self.preprocess(image)
+                image_tensors.append(image_tensor)
+
+            # Stack tensors and move to device
+            batch_tensor = torch.stack(image_tensors).to(self.device)
+
+            # Get embeddings for the batch
+            with torch.no_grad():
+                batch_embeddings = self.model.encode_image(batch_tensor)
+                # Move to CPU and convert to numpy
+                batch_embeddings = batch_embeddings.cpu().numpy()
+                all_embeddings.append(batch_embeddings)
+
+        # Concatenate all batch results
+        if all_embeddings:
+            return np.vstack(all_embeddings)
+        else:
+            return np.array([])
 
     async def find_similar_images(
             self,
@@ -66,7 +92,7 @@ class ImageSearchEngine:
             List of tuples containing (image_id, similarity_score)
         """
         # Create embedding for the input image
-        query_vector = self.get_image_embedding(image)
+        query_vector = self.get_image_embeddings(image)[0]
 
         # Search for similar vectors in Qdrant
         similar_points = qdrant.search_vectors(
@@ -97,7 +123,7 @@ class ImageSearchEngine:
             qdrant: QdrantService instance
         """
         # Create embedding
-        vector = self.get_image_embedding(image)
+        vector = self.get_image_embeddings(image)[0]
 
         # Create point with vector and metadata
         point = {
