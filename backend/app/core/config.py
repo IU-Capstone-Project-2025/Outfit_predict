@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     # PostgreSQL
     database_url: str = Field(..., alias="DATABASE_URL")
 
+    # Qdrant
+    qdrant_url: str = Field(..., alias="Qdrant_URL")
+    qdrant_api_key: str = Field(..., alias="Qdrant_API_KEY")
+
     # MinIO
     minio_endpoint: str = Field(..., env="MINIO_ENDPOINT")  # host:port
     minio_access_key: str = Field(..., env="MINIO_ACCESS_KEY")
