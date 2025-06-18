@@ -1,4 +1,6 @@
 import { Shirt } from "lucide-react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export function Header() {
   return (
@@ -11,16 +13,12 @@ export function Header() {
               OutfitPredict
             </span>
           </div>
-          <nav className="hidden md:flex space-x-6">
-            <a href="#" className="text-gray-600 hover:text-purple-600 transition-colors">
-              How it Works
-            </a>
-            <a href="#" className="text-gray-600 hover:text-purple-600 transition-colors">
-              About
-            </a>
-            <a href="#" className="text-gray-600 hover:text-purple-600 transition-colors">
-              Contact
-            </a>
+          <nav className="hidden md:flex space-x-6 items-center">
+            <Link href="/wardrobe">
+              <Button variant="outline" className="rounded-xl border border-purple-400 bg-white hover:bg-purple-50 text-purple-600 font-semibold shadow-sm transition-colors">
+                View My Wardrobe
+              </Button>
+            </Link>
           </nav>
         </div>
       </div>
