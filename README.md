@@ -53,7 +53,7 @@ Outfit Predict is a web platform for creating perfect outfits based on your ward
 cp .env.example .env
 ```
 
-4. Perform another updates the `.env` file with your configuration values.
+4. Perform another updates on the `.env` file with your configuration values.
 
 ## 🚀 Running the Application
 
