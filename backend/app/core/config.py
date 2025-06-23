@@ -1,12 +1,17 @@
-from functools import lru_cache
 import os
+from functools import lru_cache
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     # PostgreSQL
-    database_url: str = Field(..., alias="DATABASE_URL")
+    database_user: str = Field(..., alias="POSTGRES_USER")
+    database_password: str = Field(..., alias="POSTGRES_PASSWORD")
+    database_db: str = Field(..., alias="POSTGRES_DB")
+    database_port: str = Field(..., alias="POSTGRES_PORT")
+    database_host: str = Field(..., alias="POSTGRES_HOST")
 
     # Qdrant
     qdrant_url: str = Field(..., alias="Qdrant_URL")
@@ -25,6 +30,10 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def database_url_async(self):
+        return f"postgresql+asyncpg://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_db}"
 
 
 @lru_cache

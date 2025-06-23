@@ -1,3 +1,4 @@
+alembic==1.16.2
 annotated-types==0.7.0
 anyio==4.9.0
 argon2-cffi==25.1.0
@@ -17,12 +18,19 @@ fonttools==4.58.2
 fsspec==2025.5.1
 ftfy==6.3.1
 greenlet==3.2.3
+grpcio==1.73.0
 h11==0.16.0
+h2==4.2.0
+hpack==4.1.0
+httpcore==1.0.9
 httptools==0.6.4
+httpx==0.28.1
+hyperframe==6.1.0
 idna==3.10
 Jinja2==3.1.6
 joblib==1.5.1
 kiwisolver==1.4.8
+Mako==1.3.10
 MarkupSafe==3.0.2
 matplotlib==3.10.3
 minio==7.2.15
@@ -33,6 +41,8 @@ opencv-python==4.11.0.86
 packaging==25.0
 pandas==2.3.0
 pillow==11.2.1
+portalocker==2.10.1
+protobuf==6.31.1
 psutil==7.0.0
 py-cpuinfo==9.0.0
 pycparser==2.22
@@ -46,10 +56,12 @@ python-dotenv==1.1.0
 python-multipart==0.0.20
 pytz==2025.2
 PyYAML==6.0.2
+qdrant-client
 regex==2024.11.6
 requests==2.32.4
 scikit-learn==1.5.2
 scipy==1.15.3
+setuptools==80.9.0
 six==1.17.0
 sniffio==1.3.1
 SQLAlchemy==2.0.41
@@ -64,9 +76,8 @@ typing_extensions==4.14.0
 tzdata==2025.2
 ultralytics==8.3.153
 ultralytics-thop==2.0.14
-urllib3>=1.26.14,<2.0.0
+urllib3==1.26.20
 uvicorn==0.34.3
 watchfiles==1.0.5
 wcwidth==0.2.13
 websockets==15.0.1
-qdrant-client==1.7.0
