@@ -6,6 +6,8 @@ import { useState, useCallback, useRef } from "react"
 import { Upload, X, Shirt, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
+import { getApiBaseUrl } from "@/lib/utils"
+import Link from "next/link"
 
 export default function OutfitGeneratorLanding() {
   const [files, setFiles] = useState<File[]>([])
@@ -36,7 +38,7 @@ export default function OutfitGeneratorLanding() {
     // You can also append a description if needed, e.g., formData.append("description", "My clothing item")
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/images/", {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
         method: "POST",
         body: formData,
       })
@@ -99,7 +101,7 @@ export default function OutfitGeneratorLanding() {
 
         <div className="relative z-10 container mx-auto px-4 py-12">
           {/* Header */}
-          <div className="text-center mb-12">
+          <div className="text-center mb-4">
             <div className="flex items-center justify-center mb-4">
               <Shirt className="w-8 h-8 text-purple-600 mr-2" />
               <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
@@ -109,6 +111,15 @@ export default function OutfitGeneratorLanding() {
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Upload photos of your clothes and get personalized outfit recommendations powered by AI
             </p>
+          </div>
+
+          {/* Add View My Wardrobe button below the title and description */}
+          <div className="flex justify-center mb-16">
+            <Link href="/wardrobe">
+              <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-pink-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-6 py-3 rounded-xl">
+                View My Wardrobe
+              </Button>
+            </Link>
           </div>
 
           {/* Upload Area */}
