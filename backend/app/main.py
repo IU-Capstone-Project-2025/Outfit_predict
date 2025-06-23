@@ -8,14 +8,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Picture Storage API")
 
+origins = [
+    "http://localhost:3000",  # Frontend URL , local host 
+    "https://yourdomain.com",
+    "*",  # Allows all origins (not recommended for production)
+]
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # список допустимых доменов из настроек
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Routers
 app.include_router(image_router.router, prefix=get_settings().api_prefix)
