@@ -26,9 +26,7 @@ class Settings(BaseSettings):
 
     # Storage
     STORAGE_DIR: str = Field(default=os.path.join(os.getcwd(), "storage"))
-
     api_prefix: str = "/api/v1"
-
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
