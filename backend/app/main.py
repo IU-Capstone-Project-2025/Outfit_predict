@@ -3,8 +3,6 @@ from app.api.v1.endpoints import image as image_router
 from app.api.v1.endpoints import clothing as clothing_router
 from app.api.v1.endpoints import outfits as outfits_router
 from app.core.config import get_settings
-from app.db.base import Base
-from app.db.database import engine
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
