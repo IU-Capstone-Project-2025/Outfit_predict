@@ -20,4 +20,4 @@ async def list_outfits(db: AsyncSession, skip: int = 0, limit: int = 100) -> lis
     """Return outfits ordered by newest first."""
     stmt = select(Outfit).order_by(Outfit.created_at.desc()).offset(skip).limit(limit)
     res = await db.execute(stmt)
-    return list(res.scalars().all()) 
+    return list(res.scalars().all())

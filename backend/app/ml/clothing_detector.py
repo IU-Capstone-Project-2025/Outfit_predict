@@ -5,6 +5,7 @@ import numpy as np
 # trained model
 model = YOLO('app/ml/best.pt')
 
+
 def get_clothes_from_img(img_path):
     # read the image
     img = cv2.imread(img_path)
@@ -23,7 +24,7 @@ def get_clothes_from_img(img_path):
         8: 'bag',
         9: 'shoe'
     }
-    
+
     # predict the clothes
     results = model.predict(img_path)
     # get the boxes of clothes
@@ -54,9 +55,9 @@ def get_clothes_from_img(img_path):
         y = float(y)
         width = float(width)
         height = float(height)
-        x1_real = int(np.abs(x - (width/2)) * img_width)
-        x2_real = int(np.abs(x + (width/2)) * img_width)
-        y1_real = int(np.abs(y + (height/2)) * img_height)
-        y2_real = int(np.abs(y - (height/2)) * img_height)
-        parts.append((name,img[y2_real:y1_real, x1_real:x2_real]))
+        x1_real = int(np.abs(x - (width / 2)) * img_width)
+        x2_real = int(np.abs(x + (width / 2)) * img_width)
+        y1_real = int(np.abs(y + (height / 2)) * img_height)
+        y2_real = int(np.abs(y - (height / 2)) * img_height)
+        parts.append((name, img[y2_real:y1_real, x1_real:x2_real]))
     return parts
