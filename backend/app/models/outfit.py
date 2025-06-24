@@ -12,4 +12,4 @@ class Outfit(Base):
     object_name = Column(String(length=512), nullable=False, unique=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
-    ) 
+    )
