@@ -1,13 +1,12 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useCallback, useRef } from "react"
+import React, { useState, useCallback, useRef } from "react"
 import { Upload, X, Shirt, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
 import { getApiBaseUrl } from "@/lib/utils"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function OutfitGeneratorLanding() {
   const [files, setFiles] = useState<File[]>([])
@@ -15,6 +14,30 @@ export default function OutfitGeneratorLanding() {
   const [uploadMessage, setUploadMessage] = useState<string | null>(null)
   const [isMessageFadingOut, setIsMessageFadingOut] = useState(false)
   const fadeOutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [recommendations, setRecommendations] = useState<any[] | null>(null)
+  const [showRecommendations, setShowRecommendations] = useState(false)
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false)
+  const [recommendationError, setRecommendationError] = useState<string | null>(null)
+  const [wardrobeImages, setWardrobeImages] = useState<any[]>([])
+  const [wardrobeLoading, setWardrobeLoading] = useState(true)
+
+  // Fetch wardrobe images on mount
+  React.useEffect(() => {
+    const fetchImages = async () => {
+      setWardrobeLoading(true)
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/v1/images/`)
+        if (!res.ok) throw new Error("Failed to fetch wardrobe images")
+        const data = await res.json()
+        setWardrobeImages(data)
+      } catch (err) {
+        setWardrobeImages([])
+      } finally {
+        setWardrobeLoading(false)
+      }
+    }
+    fetchImages()
+  }, [])
 
   const showUploadMessage = useCallback((message: string) => {
     if (fadeOutTimeoutRef.current) {
@@ -85,6 +108,72 @@ export default function OutfitGeneratorLanding() {
   const removeFile = useCallback((index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index))
   }, [])
+
+  const handleGenerateOutfits = useCallback(async () => {
+    let imagesToSend: File[] = files
+    // If no files uploaded, use wardrobe images
+    if (imagesToSend.length === 0 && wardrobeImages.length > 0) {
+      // Fetch each wardrobe image as blob and convert to File
+      setLoadingRecommendations(true)
+      setRecommendationError(null)
+      try {
+        const blobs = await Promise.all(
+          wardrobeImages.map(async (img: any, idx: number) => {
+            const res = await fetch(img.url)
+            const blob = await res.blob()
+            // Try to keep the filename unique and extension correct
+            return new File([blob], img.description || `wardrobe_${idx}.jpg`, { type: blob.type })
+          })
+        )
+        imagesToSend = blobs
+      } catch (err) {
+        setRecommendationError("Failed to load wardrobe images for outfit generation.")
+        setLoadingRecommendations(false)
+        return
+      }
+    }
+    if (imagesToSend.length === 0) {
+      showUploadMessage("Please upload at least one image to your wardrobe.")
+      return
+    }
+    setLoadingRecommendations(true)
+    setRecommendationError(null)
+    try {
+      const formData = new FormData()
+      imagesToSend.forEach((file) => formData.append("files", file))
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/outfits/search-similar/`, {
+        method: "POST",
+        body: formData,
+      })
+      if (!response.ok) throw new Error("Failed to generate outfits")
+      const recs = await response.json()
+      // Fetch all wardrobe images
+      const imagesRes = await fetch(`${getApiBaseUrl()}/api/v1/images/`)
+      if (!imagesRes.ok) throw new Error("Failed to fetch wardrobe images")
+      const images = await imagesRes.json()
+      // Attach wardrobe image URLs to recommendations
+      const recsWithImages = recs.map((rec: any) => {
+        const matchesWithUrls = (rec.recommendation?.matches || []).map((match: any) => {
+          const wardrobeImage = images.find((img: any) => img.object_name === match.wardrobe_image_object_name)
+          return {
+            ...match,
+            wardrobe_image_url: wardrobeImage ? wardrobeImage.url : null,
+            wardrobe_image_description: wardrobeImage ? wardrobeImage.description : null,
+          }
+        })
+        return {
+          ...rec,
+          matchesWithUrls,
+        }
+      })
+      setRecommendations(recsWithImages)
+      setShowRecommendations(true)
+    } catch (err: any) {
+      setRecommendationError(err.message || "Unknown error")
+    } finally {
+      setLoadingRecommendations(false)
+    }
+  }, [files, wardrobeImages, showUploadMessage])
 
   return (
     <>
@@ -160,6 +249,18 @@ export default function OutfitGeneratorLanding() {
                 {uploadMessage}
               </div>
             )}
+
+            {/* Generate Outfits Button */}
+            <div className="flex justify-center mt-8">
+              <Button
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-pink-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-6 py-3 rounded-xl flex items-center gap-2"
+                onClick={handleGenerateOutfits}
+                disabled={loadingRecommendations}
+              >
+                <Sparkles className="w-5 h-5 mr-2" />
+                {loadingRecommendations ? "Generating..." : "Generate Outfits"}
+              </Button>
+            </div>
           </div>
 
           {/* Features */}
@@ -188,6 +289,46 @@ export default function OutfitGeneratorLanding() {
               <p className="text-gray-600 text-sm">Get outfit suggestions tailored to your style and wardrobe</p>
             </div>
           </div>
+
+          {/* Recommendations Modal */}
+          {showRecommendations && recommendations && (
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowRecommendations(false)}>
+              <div className="bg-white rounded-2xl p-8 max-w-3xl w-full max-h-[90vh] overflow-auto shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl" onClick={() => setShowRecommendations(false)}>&times;</button>
+                <h2 className="text-2xl font-bold mb-6 text-center">Recommended Outfits</h2>
+                {recommendations.length === 0 && <div className="text-center text-gray-500">No recommendations found.</div>}
+                {recommendations.map((rec, idx) => (
+                  <div key={idx} className="mb-8 border-b pb-6 last:border-b-0 last:pb-0">
+                    <div className="flex flex-col md:flex-row gap-6 items-center">
+                      <img src={rec.outfit.url} alt="Outfit" className="w-40 h-40 object-cover rounded-xl border" />
+                      <div className="flex-1">
+                        <div className="mb-2 font-semibold text-lg">Matched Wardrobe Items:</div>
+                        <div className="flex flex-wrap gap-4">
+                          {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
+                            rec.matchesWithUrls.map((match: any, i: number) => (
+                              <div key={i} className="flex flex-col items-center">
+                                {match.wardrobe_image_url ? (
+                                  <img src={match.wardrobe_image_url} alt={match.wardrobe_image_description || "Wardrobe item"} className="w-20 h-20 object-cover rounded-lg border" />
+                                ) : (
+                                  <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500">No image</div>
+                                )}
+                                <div className="text-xs text-gray-600 mt-1 text-center max-w-[5rem] truncate">{match.wardrobe_image_description || match.wardrobe_image_object_name}</div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-gray-400">No wardrobe items matched.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {recommendationError && (
+            <div className="text-center text-red-500 mt-4">{recommendationError}</div>
+          )}
         </div>
       </div>
     </>
