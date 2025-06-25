@@ -1,8 +1,8 @@
 <img src="logo.png" alt="Outfit Predict Logo">
 
-# Outfit Predict
-
 Outfit Predict is a web platform for creating perfect outfits based on your wardrobe. It automatically searches outfits storage to assemble flawless looks from your wardrobe.
+
+[**Link to the deployed project**](http://178.215.238.69:3000/)
 
 ## 📋 Table of Contents
 
@@ -92,3 +92,4 @@ The application will be available at:
 |------|------|---------------------|
 | Week 1 | Finding team & deciding project idea | - Researched project ideas<br>- Basic market research & user stories<br>- Basic backend development with database for wardrobe<br>- Trained YOLO model<br>- CLIP Embedder was included |
 | Week 2 | First CustDevs and market research, sub-MVP functionality | - Vector Database introduced<br>- Second table for outfits introduced<br>- Developed function for finding most similar outfits<br>- CustDev conducted<br>- Market Research and Concurrent research |
+| Week 3| Introducing MVP | - Developed and enhanced our algorithm for searching best outfits<br> -Developed migrations and deployed the project<br>- Conducted customer developments and created hypotheses for future features<br>- Developed frontend pages for checking wardrobe, uploading items, and making outfit predictions.
