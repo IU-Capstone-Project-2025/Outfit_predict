@@ -6,5 +6,5 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_URL;
+  return process.env.NEXT_PUBLIC_API_URL || 'http://0.0.0.0:8000';
 }
