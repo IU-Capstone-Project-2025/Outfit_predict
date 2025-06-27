@@ -205,7 +205,7 @@ export default function OutfitGeneratorLanding() {
           {/* Add View My Wardrobe button below the title and description */}
           <div className="flex justify-center mb-16">
             <Link href="/wardrobe">
-              <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-pink-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-6 py-3 rounded-xl">
+              <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-8 py-3 rounded-2xl cursor-pointer text-sm font-semibold h-12 group">
                 View My Wardrobe
               </Button>
             </Link>
@@ -253,7 +253,7 @@ export default function OutfitGeneratorLanding() {
             {/* Generate Outfits Button */}
             <div className="flex justify-center mt-8">
               <Button
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-pink-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-6 py-3 rounded-xl flex items-center gap-2"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-8 py-3 rounded-2xl cursor-pointer text-sm font-semibold h-12 group flex items-center gap-2"
                 onClick={handleGenerateOutfits}
                 disabled={loadingRecommendations}
               >
