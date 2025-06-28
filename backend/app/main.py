@@ -1,6 +1,6 @@
 import uvicorn
-from app.api.v1.endpoints import image as image_router
 from app.api.v1.endpoints import clothing as clothing_router
+from app.api.v1.endpoints import image as image_router
 from app.api.v1.endpoints import outfits as outfits_router
 from app.core.config import get_settings
 from fastapi import FastAPI

@@ -19,7 +19,7 @@ Outfit Predict is a web platform for creating perfect outfits based on your ward
 - **Problem**: Imagine a situation where you have a lot of items in your wardrobe and you want to decide what to wear. Scanning through the clothes and trying different combinations of them could take enormous amount of time. Still, this random approach will not lead you to perfect outfit.
 - **Audience**: Any person who cares about their outfit, watches current trends in fashion, and wants to look attractive.
 
-## 💡 Proposed Workflow 
+## 💡 Proposed Workflow
 
 1. User uploads clothes - from wardrobe, offline store, online shop, and others. This process of uploading more clothes could be continued, and the clothes could be deleted.
 
@@ -31,7 +31,7 @@ Outfit Predict is a web platform for creating perfect outfits based on your ward
 
 5. User gets ranked list of possible outfits that could be composed from selected clothes.
 
-## 🔪 Tech Stack 
+## 🔪 Tech Stack
 
 | Category | Technologies |
 |----------|-------------|
@@ -75,7 +75,7 @@ The application will be available at:
 - Backend API: http://localhost:8000
 - MinIO Console: http://localhost:9001
 
-## 👥 Team 
+## 👥 Team
 
 | Name | Role |
 |----------|-------------|
