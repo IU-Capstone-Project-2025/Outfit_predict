@@ -62,9 +62,7 @@ jobs:
       run: |
         pre-commit run --all-files --show-diff-on-failure
 
-    # ──────────────── Backend tests ────────────────
-    - name: Run backend tests
-      run: pytest backend
+    # ──────────────── Backend tests ──────────────── waiting until adds tests
 
     # ──────────────── Frontend build + ESLint ────────────────
     - name: Lint & build frontend
