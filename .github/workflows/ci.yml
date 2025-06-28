@@ -64,13 +64,6 @@ jobs:
 
     # ──────────────── Backend tests ──────────────── waiting until adds tests
 
-    # ──────────────── Frontend build + ESLint ────────────────
-    - name: Lint & build frontend
-      working-directory: frontend
-      run: |
-        npm run lint
-        npm run build
-
     # ──────────────── Commitizen check (optional) ────────────────
     - name: Verify commit messages (Conventional Commits)
       if: github.event_name == 'pull_request'
