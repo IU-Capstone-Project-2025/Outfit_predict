@@ -31,7 +31,8 @@ class Settings(BaseSettings):
 
     @property
     def database_url_async(self):
-        return f"postgresql+asyncpg://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_db}"
+        return f"""postgresql+asyncpg://{self.database_user}:{self.database_password}@
+        {self.database_host}:{self.database_port}/{self.database_db}"""
 
 
 @lru_cache

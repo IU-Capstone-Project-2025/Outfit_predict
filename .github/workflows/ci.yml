@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: outfit
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/outfit
+      QDRANT_API_KEY: dummy
+      QDRANT_HOST: localhost
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # ──────────────── Python backend ────────────────
+    - uses: actions/setup-python@v5
+      with:
+        python-version: 3.12
+
+    - name: Install Python deps
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        pip install pre-commit commitizen
+        pip install pytest pytest-asyncio
+
+    # ──────────────── Node frontend ────────────────
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install Node deps
+      working-directory: frontend
+      run: npm ci
+
+    # ──────────────── Pre-commit (linters/formatters) ────────────────
+    - name: Run pre-commit (all hooks)
+      run: |
+        pre-commit run --all-files --show-diff-on-failure
+
+    # ──────────────── Backend tests ──────────────── waiting until adds tests
+
+    #  ──────────────── Commitizen check (optional) ────────────────
+    # - name: Verify commit messages
+    #   if: github.event_name == 'pull_request'
+    #   run: cz check --rev-range origin/main..HEAD

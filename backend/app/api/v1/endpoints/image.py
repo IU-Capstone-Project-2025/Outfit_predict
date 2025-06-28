@@ -34,7 +34,10 @@ async def list_images(
     db: AsyncSession = Depends(get_db),
 ):
     images = await crud_image.list_images(db, skip, limit)
-    base_url_for = lambda img_id: request.url_for("get_image_file", image_id=img_id)
+
+    def base_url_for(img_id):
+        return request.url_for("get_image_file", image_id=img_id)
+
     return [ImageRead(**img.__dict__, url=str(base_url_for(img.id))) for img in images]
 
 

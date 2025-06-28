@@ -1,16 +1,13 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse
-import cv2
-import numpy as np
 import os
-from typing import List
-import uuid
-from datetime import datetime
-import zipfile
-from io import BytesIO
 import shutil
+import zipfile
+from datetime import datetime
+from io import BytesIO
 
+import cv2
 from app.ml.clothing_detector import get_clothes_from_img
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/clothing", tags=["clothing"])
 
@@ -42,7 +39,7 @@ async def detect_clothes(file: UploadFile = File(...)):
 
         # Create zip file in memory
         zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
             # Save each detected clothing item to the zip
             for cloth in detected_clothes:
                 # Save cloth to temporary file
@@ -58,7 +55,9 @@ async def detect_clothes(file: UploadFile = File(...)):
         return StreamingResponse(
             zip_buffer,
             media_type="application/zip",
-            headers={"Content-Disposition": 'attachment; filename="detected_clothes.zip"'}
+            headers={
+                "Content-Disposition": 'attachment; filename="detected_clothes.zip"'
+            },
         )
 
     except Exception as e:

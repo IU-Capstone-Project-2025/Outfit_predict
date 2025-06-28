@@ -1,11 +1,11 @@
-from PIL import Image
-import torch
+from typing import List, Tuple, Union
+
 import clip
 import numpy as np
-from typing import List, Tuple, Set, Union
-from collections import Counter
+import torch
+from app.schemas.outfit import MatchedItem, RecommendedOutfit
 from app.storage.qdrant_client import QdrantService
-from app.schemas.outfit import RecommendedOutfit, MatchedItem
+from PIL import Image
 
 
 class ImageSearchEngine:
@@ -27,7 +27,9 @@ class ImageSearchEngine:
         # Set model to evaluation mode
         self.model.eval()
 
-    def get_image_embeddings(self, images: Union[Image.Image, List[Image.Image]], batch_size: int = 32) -> np.ndarray:
+    def get_image_embeddings(
+        self, images: Union[Image.Image, List[Image.Image]], batch_size: int = 32
+    ) -> np.ndarray:
         """
         Create embeddings for images using CLIP model
 
@@ -49,7 +51,7 @@ class ImageSearchEngine:
 
         # Process images in batches
         for i in range(0, len(images), batch_size):
-            batch_images = images[i:i + batch_size]
+            batch_images = images[i : i + batch_size]
 
             # Preprocess all images in the batch
             image_tensors = []
@@ -74,11 +76,11 @@ class ImageSearchEngine:
             return np.array([])
 
     async def find_similar_images(
-            self,
-            image: Image.Image,
-            qdrant: QdrantService,
-            limit: int = 10,
-            score_threshold: float = 0.7
+        self,
+        image: Image.Image,
+        qdrant: QdrantService,
+        limit: int = 10,
+        score_threshold: float = 0.7,
     ) -> List[Tuple[str, float]]:
         """
         Find similar images using CLIP embeddings and Qdrant vector search.
@@ -97,9 +99,7 @@ class ImageSearchEngine:
 
         # Search for similar vectors in Qdrant
         similar_points = qdrant.search_vectors(
-            query_vector=query_vector,
-            limit=limit,
-            score_threshold=score_threshold
+            query_vector=query_vector, limit=limit, score_threshold=score_threshold
         )
 
         # Extract image IDs and scores from results
@@ -108,11 +108,7 @@ class ImageSearchEngine:
         return results
 
     async def add_image_to_index(
-            self,
-            image: Image.Image,
-            image_id: str,
-            outfit_id: str,
-            qdrant: QdrantService
+        self, image: Image.Image, image_id: str, outfit_id: str, qdrant: QdrantService
     ) -> None:
         """
         Add a single image to the Qdrant index
@@ -127,13 +123,7 @@ class ImageSearchEngine:
         vector = self.get_image_embeddings(image)[0]
 
         # Create point with vector and metadata
-        point = {
-            "id": image_id,
-            "vector": vector,
-            "payload": {
-                "outfit_id": outfit_id
-            }
-        }
+        point = {"id": image_id, "vector": vector, "payload": {"outfit_id": outfit_id}}
 
         # Upsert to Qdrant
         qdrant.upsert_vectors([point])
@@ -165,12 +155,16 @@ class ImageSearchEngine:
             limit_outfits: The maximum number of recommended outfits to return.
 
         Returns:
-            A list of `RecommendedOutfit` objects, sorted by their completeness score in descending order.
-            Each object includes the outfit ID, its score, and a list of `MatchedItem`s detailing which
+            A list of `RecommendedOutfit` objects, sorted by their completeness
+            score in descending order.
+            Each object includes the outfit ID, its score,
+            and a list of `MatchedItem`s detailing which
             wardrobe item matches which outfit item.
         """
         if not images or len(images) != len(wardrobe_object_names):
-            raise ValueError("Mismatched number of images and object names, or lists are empty.")
+            raise ValueError(
+                "Mismatched number of images and object names, or lists are empty."
+            )
 
         # STAGE 1: CANDIDATE GENERATION
         # Get embeddings for all wardrobe images in a single batch
@@ -203,7 +197,9 @@ class ImageSearchEngine:
                 continue
 
             # Extract embeddings and IDs
-            outfit_item_embeddings = np.array([record.vector for record in outfit_item_records])
+            outfit_item_embeddings = np.array(
+                [record.vector for record in outfit_item_records]
+            )
             outfit_item_ids = [record.id for record in outfit_item_records]
 
             # Calculate similarity matrix between all wardrobe items and all outfit items at once
