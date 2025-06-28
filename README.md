@@ -13,7 +13,7 @@ Outfit Predict is a web platform for creating perfect outfits based on your ward
 - [🚀 Running the Application](#-running-the-application)
 - [👥 Team](#-team)
 - [📊 Progress Table](#-progress-table)
-
+- [🛠️ Developing guide](#-developing-guide)
 ## 🤵‍♂️ Problem & Audience
 
 - **Problem**: Imagine a situation where you have a lot of items in your wardrobe and you want to decide what to wear. Scanning through the clothes and trying different combinations of them could take enormous amount of time. Still, this random approach will not lead you to perfect outfit.
@@ -93,3 +93,5 @@ The application will be available at:
 | Week 1 | Finding team & deciding project idea | - Researched project ideas<br>- Basic market research & user stories<br>- Basic backend development with database for wardrobe<br>- Trained YOLO model<br>- CLIP Embedder was included |
 | Week 2 | First CustDevs and market research, sub-MVP functionality | - Vector Database introduced<br>- Second table for outfits introduced<br>- Developed function for finding most similar outfits<br>- CustDev conducted<br>- Market Research and Concurrent research |
 | Week 3| Introducing MVP | - Developed and enhanced our algorithm for searching best outfits<br> -Developed migrations and deployed the project<br>- Conducted customer developments and created hypotheses for future features<br>- Developed frontend pages for checking wardrobe, uploading items, and making outfit predictions.
+
+## 🛠️ Developing guide [link](dev.md)

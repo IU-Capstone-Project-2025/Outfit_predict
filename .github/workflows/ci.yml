@@ -65,6 +65,6 @@ jobs:
     # ──────────────── Backend tests ──────────────── waiting until adds tests
 
     # ──────────────── Commitizen check (optional) ────────────────
-    - name: Verify commit messages (Conventional Commits)
+    - name: Verify commit messages
       if: github.event_name == 'pull_request'
-      run: commitizen check --rev-range origin/main..HEAD
+      run: cz check --rev-range origin/main..HEAD
