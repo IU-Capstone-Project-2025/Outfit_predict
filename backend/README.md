@@ -120,7 +120,6 @@ curl http://localhost:8000/api/v1/images/<id>/file --output downloaded.jpg
 Unit tests for backend logic are located in the `backend/tests/` directory. For each critical logic file (e.g., in `crud/`, `ml/`, `models/`, `storage/`, `core/`), there is a corresponding test file named `test_<module>.py` (e.g., `test_crud_image.py`).
 
 To run all tests:
-(host and port can be any, because it doesn't create a real database)
 ```bash
-POSTGRES_HOST=localhost POSTGRES_PORT=5432 PYTHONPATH=backend pytest backend/tests
+PYTHONPATH=backend pytest backend/tests
 ```

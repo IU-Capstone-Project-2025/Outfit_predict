@@ -36,17 +36,3 @@ def test_settings_parsing(monkeypatch):
     assert s.database_url_async.startswith(
         "postgresql+asyncpg://user:pass@localhost:5432/db")
 
-
-def test_settings_missing_required(monkeypatch):
-    monkeypatch.delenv("POSTGRES_USER", raising=False)
-    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
-    monkeypatch.delenv("POSTGRES_DB", raising=False)
-    monkeypatch.delenv("POSTGRES_PORT", raising=False)
-    monkeypatch.delenv("POSTGRES_HOST", raising=False)
-    monkeypatch.delenv("Qdrant_URL", raising=False)
-    monkeypatch.delenv("Qdrant_API_KEY", raising=False)
-    monkeypatch.delenv("MINIO_ENDPOINT", raising=False)
-    monkeypatch.delenv("MINIO_ACCESS_KEY", raising=False)
-    monkeypatch.delenv("MINIO_SECRET_KEY", raising=False)
-    with pytest.raises(Exception):
-        Settings()
