@@ -17,11 +17,12 @@ async def create_image(
 
 async def get_image(db: AsyncSession, image_id: uuid.UUID) -> Image | None:
     res = await db.execute(select(Image).where(Image.id == image_id))
-    return res.scalar_one_or_none()
+    return await res.scalar_one_or_none()
 
 
 async def list_images(db: AsyncSession, skip: int = 0, limit: int = 100) -> list[Image]:
     """Return images ordered by newest first."""
-    stmt = select(Image).order_by(Image.created_at.desc()).offset(skip).limit(limit)
+    stmt = select(Image).order_by(
+        Image.created_at.desc()).offset(skip).limit(limit)
     res = await db.execute(stmt)
     return list(res.scalars().all())
