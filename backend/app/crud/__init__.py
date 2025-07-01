@@ -1,4 +1,3 @@
-from . import outfit
-from . import image
+from . import image, outfit
 
 __all__ = ["outfit", "image"]

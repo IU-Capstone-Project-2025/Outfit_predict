@@ -1,7 +1,8 @@
-from uuid import UUID
-from pydantic import BaseModel
-from typing import List, Optional, Dict
 from datetime import datetime
+from typing import Dict, List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel
 
 
 class OutfitBase(BaseModel):

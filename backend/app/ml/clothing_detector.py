@@ -1,9 +1,9 @@
-from ultralytics import YOLO
 import cv2
 import numpy as np
+from ultralytics import YOLO
 
 # trained model
-model = YOLO('app/ml/best.pt')
+model = YOLO("app/ml/best.pt")
 
 
 def get_clothes_from_img(img_path):
@@ -13,16 +13,16 @@ def get_clothes_from_img(img_path):
 
     img_height, img_width, _ = img.shape
     names = {
-        0: 'sunglass',
-        1: 'hat',
-        2: 'jacket',
-        3: 'shirt',
-        4: 'pants',
-        5: 'shorts',
-        6: 'skirt',
-        7: 'dress',
-        8: 'bag',
-        9: 'shoe'
+        0: "sunglass",
+        1: "hat",
+        2: "jacket",
+        3: "shirt",
+        4: "pants",
+        5: "shorts",
+        6: "skirt",
+        7: "dress",
+        8: "bag",
+        9: "shoe",
     }
 
     # predict the clothes
@@ -47,10 +47,10 @@ def get_clothes_from_img(img_path):
         name = int(name.item())
         if name in count_clothes:
             count_clothes[name] += 1
-            name = str(names[name]) + f'_{count_clothes[name] - 1}'
+            name = str(names[name]) + f"_{count_clothes[name] - 1}"
         else:
             count_clothes[name] = 1
-            name = names[name] + '_0'
+            name = names[name] + "_0"
         x = float(x)
         y = float(y)
         width = float(width)
