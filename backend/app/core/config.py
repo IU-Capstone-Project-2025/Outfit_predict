@@ -7,11 +7,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # PostgreSQL
-    DATABASE_USER: str = Field(..., env="POSTGRES_USER")
-    DATABASE_PASSWORD: str = Field(..., env="POSTGRES_PASSWORD")
-    DATABASE_DB: str = Field(..., env="POSTGRES_DB")
-    DATABASE_PORT: str = Field(..., env="POSTGRES_PORT")
-    DATABASE_HOST: str = Field(..., env="POSTGRES_HOST")
+    POSTGRES_USER: str = Field(..., env="POSTGRES_USER")
+    POSTGRES_PASSWORD: str = Field(..., env="POSTGRES_PASSWORD")
+    POSTGRES_DB: str = Field(..., env="POSTGRES_DB")
+    POSTGRES_PORT: str = Field(..., env="POSTGRES_PORT")
+    POSTGRES_HOST: str = Field(..., env="POSTGRES_HOST")
 
     # Qdrant
     QDRANT_URL: str = Field(..., env="QDRANT_URL")
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     @property
     def database_url_async(self):
-        return f"""postgresql+asyncpg://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_DB}"""  # noqa
+        return f"""postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"""  # noqa
 
 
 @lru_cache
