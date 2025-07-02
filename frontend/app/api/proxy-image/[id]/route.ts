@@ -35,4 +35,4 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       'Content-Type': contentType,
     },
   })
-} 
+}
