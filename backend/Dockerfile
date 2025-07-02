@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.13
 
 # System deps
 RUN apt-get update && apt-get install -y \
@@ -15,7 +15,7 @@ WORKDIR /usr/src/app
 COPY . .
 
 # Python deps
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh

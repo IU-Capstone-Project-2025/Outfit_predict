@@ -8,8 +8,8 @@ settings = get_settings()
 class QdrantService:
     def __init__(self) -> None:
         self.client = QdrantClient(
-            url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key,
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY,
         )
         self.collection_name = "outfit"
         self._ensure_collection()

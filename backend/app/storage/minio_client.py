@@ -10,12 +10,12 @@ settings = get_settings()
 class MinioService:
     def __init__(self) -> None:
         self.client = Minio(
-            settings.minio_endpoint,
-            access_key=settings.minio_access_key,
-            secret_key=settings.minio_secret_key,
-            secure=settings.minio_secure,
+            settings.MINIO_ENDPOINT,
+            access_key=settings.MINIO_ACCESS_KEY,
+            secret_key=settings.MINIO_SECRET_KEY,
+            secure=settings.MINIO_SECURE,
         )
-        self.bucket = settings.minio_bucket
+        self.bucket = settings.MINIO_BUCKET
         self._ensure_bucket()
 
     def _ensure_bucket(self) -> None:
