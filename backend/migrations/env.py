@@ -5,6 +5,7 @@ from app.core.config import get_settings
 from app.db.database import Base
 from app.models.image import Image  # noqa
 from app.models.outfit import Outfit  # noqa
+from app.models.user import User  # noqa
 from sqlalchemy import engine_from_config, pool
 
 # this is the Alembic Config object, which provides

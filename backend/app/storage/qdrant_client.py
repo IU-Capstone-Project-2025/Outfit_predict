@@ -8,8 +8,8 @@ settings = get_settings()
 class QdrantService:
     def __init__(self) -> None:
         self.client = QdrantClient(
-            url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key,
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY,
         )
         self.collection_name = "outfit"
         self._ensure_collection()
@@ -24,8 +24,8 @@ class QdrantService:
                 collection_name=self.collection_name,
                 vectors_config=models.VectorParams(
                     size=512,  # CLIP ViT-B/32 embedding size
-                    distance=models.Distance.COSINE
-                )
+                    distance=models.Distance.COSINE,
+                ),
             )
 
         # Ensure a payload index exists for 'outfit_id' for efficient filtering.
@@ -33,28 +33,22 @@ class QdrantService:
         self.client.create_payload_index(
             collection_name=self.collection_name,
             field_name="outfit_id",
-            field_schema=models.PayloadSchemaType.KEYWORD
+            field_schema=models.PayloadSchemaType.KEYWORD,
         )
 
     def upsert_vectors(self, points: list[models.PointStruct]) -> None:
         """Upsert vectors into the collection."""
-        self.client.upsert(
-            collection_name=self.collection_name,
-            points=points
-        )
+        self.client.upsert(collection_name=self.collection_name, points=points)
 
     def search_vectors(
-            self,
-            query_vector: list[float],
-            limit: int = 50,
-            score_threshold: float = 0.3
+        self, query_vector: list[float], limit: int = 50, score_threshold: float = 0.3
     ) -> list[models.ScoredPoint]:
         """Search for similar vectors in the collection."""
         return self.client.search(
             collection_name=self.collection_name,
             query_vector=query_vector,
             limit=limit,
-            score_threshold=score_threshold
+            score_threshold=score_threshold,
         )
 
     def get_point(self, point_id: str):
@@ -63,7 +57,7 @@ class QdrantService:
             collection_name=self.collection_name,
             ids=[point_id],
             with_payload=True,
-            with_vectors=False
+            with_vectors=False,
         )
         if not results:
             raise ValueError(f"Point with id {point_id} not found in Qdrant.")

@@ -1,6 +1,7 @@
 import uvicorn
-from app.api.v1.endpoints import image as image_router
+from app.api.v1.endpoints import auth as auth_router
 from app.api.v1.endpoints import clothing as clothing_router
+from app.api.v1.endpoints import image as image_router
 from app.api.v1.endpoints import outfits as outfits_router
 from app.core.config import get_settings
 from fastapi import FastAPI
@@ -10,7 +11,7 @@ app = FastAPI(title="Picture Storage API")
 
 origins = [
     "http://localhost:3000",  # Frontend URL , local host
-    "https://yourdomain.com",
+    "http://outfitpredict.ru",
     "*",  # Allows all origins (not recommended for production)
 ]
 
@@ -28,6 +29,7 @@ app.add_middleware(
 app.include_router(image_router.router, prefix=get_settings().api_prefix)
 app.include_router(clothing_router.router, prefix=get_settings().api_prefix)
 app.include_router(outfits_router.router, prefix=get_settings().api_prefix)
+app.include_router(auth_router.router, prefix=get_settings().api_prefix)
 
 
 if __name__ == "__main__":

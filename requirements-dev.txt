@@ -1,0 +1,3 @@
+-r requirements.txt
+commitizen
+pre-commit
