@@ -7,6 +7,7 @@ import { Header } from "@/components/header"
 import { getApiBaseUrl } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
 
 export default function OutfitGeneratorLanding() {
   const [files, setFiles] = useState<File[]>([])
@@ -20,13 +21,25 @@ export default function OutfitGeneratorLanding() {
   const [recommendationError, setRecommendationError] = useState<string | null>(null)
   const [wardrobeImages, setWardrobeImages] = useState<any[]>([])
   const [wardrobeLoading, setWardrobeLoading] = useState(true)
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
 
   // Fetch wardrobe images on mount
   React.useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login")
+      return
+    }
     const fetchImages = async () => {
       setWardrobeLoading(true)
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/v1/images/`)
+        const res = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        })
         if (!res.ok) throw new Error("Failed to fetch wardrobe images")
         const data = await res.json()
         setWardrobeImages(data)
@@ -37,7 +50,7 @@ export default function OutfitGeneratorLanding() {
       }
     }
     fetchImages()
-  }, [])
+  }, [user, router, token, loading])
 
   const showUploadMessage = useCallback((message: string) => {
     if (fadeOutTimeoutRef.current) {
@@ -64,6 +77,9 @@ export default function OutfitGeneratorLanding() {
       const response = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
         method: "POST",
         body: formData,
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       })
 
       if (response.ok) {
@@ -78,7 +94,7 @@ export default function OutfitGeneratorLanding() {
       console.error("Error during upload:", error)
       showUploadMessage(`Error uploading "${file.name}".`)
     }
-  }, [showUploadMessage])
+  }, [showUploadMessage, token])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -144,11 +160,18 @@ export default function OutfitGeneratorLanding() {
       const response = await fetch(`${getApiBaseUrl()}/api/v1/outfits/search-similar/`, {
         method: "POST",
         body: formData,
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       })
       if (!response.ok) throw new Error("Failed to generate outfits")
       const recs = await response.json()
       // Fetch all wardrobe images
-      const imagesRes = await fetch(`${getApiBaseUrl()}/api/v1/images/`)
+      const imagesRes = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
       if (!imagesRes.ok) throw new Error("Failed to fetch wardrobe images")
       const images = await imagesRes.json()
       // Attach wardrobe image URLs to recommendations
@@ -173,7 +196,7 @@ export default function OutfitGeneratorLanding() {
     } finally {
       setLoadingRecommendations(false)
     }
-  }, [files, wardrobeImages, showUploadMessage])
+  }, [files, wardrobeImages, showUploadMessage, token])
 
   return (
     <>
