@@ -15,7 +15,7 @@ async def create_outfit(db: AsyncSession, object_name: str) -> Outfit:
 
 async def get_outfit(db: AsyncSession, outfit_id: UUID) -> Outfit | None:
     res = await db.execute(select(Outfit).where(Outfit.id == outfit_id))
-    return res.scalar_one_or_none()
+    return await res.scalar_one_or_none()
 
 
 async def list_outfits(

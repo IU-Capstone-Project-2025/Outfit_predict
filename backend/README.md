@@ -114,3 +114,12 @@ curl http://localhost:8000/api/v1/images/<id>/file --output downloaded.jpg
 * Replace in-code table creation with Alembic migrations for production use
 * Use authentication and access control if serving private content
 * You can switch to real S3 or compatible services like Wasabi, DigitalOcean Spaces, etc.
+
+## Tests
+
+Unit tests for backend logic are located in the `backend/tests/` directory. For each critical logic file (e.g., in `crud/`, `ml/`, `models/`, `storage/`, `core/`), there is a corresponding test file named `test_<module>.py` (e.g., `test_crud_image.py`).
+
+To run all tests:
+```bash
+PYTHONPATH=backend pytest backend/tests
+```
