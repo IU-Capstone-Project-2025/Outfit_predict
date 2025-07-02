@@ -68,6 +68,6 @@ async def get_image_file(
     if image is None:
         raise HTTPException(status_code=404, detail="image not found")
     return StreamingResponse(
-        minio.get_file(image.object_name),
+        minio.get_stream(image.object_name),
         media_type="application/octet-stream",
     )
