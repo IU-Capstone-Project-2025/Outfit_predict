@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { MoreVertical, Search, Plus, Tag, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { getApiBaseUrl } from "@/lib/utils"
+import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
 
 interface ImageItem {
   id: string
@@ -18,7 +20,7 @@ interface ImageItem {
 
 export default function WardrobePage() {
   const [images, setImages] = useState<ImageItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [wardrobeLoading, setWardrobeLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<ImageItem | null>(null)
 
@@ -28,6 +30,11 @@ export default function WardrobePage() {
   const fadeOutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const [moreOptionsOpenId, setMoreOptionsOpenId] = useState<string | null>(null)
+
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
 
   const showUploadMessage = useCallback((message: string) => {
     if (fadeOutTimeoutRef.current) {
@@ -52,6 +59,9 @@ export default function WardrobePage() {
         const response = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
           method: "POST",
           body: formData,
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         })
         if (response.ok) {
           showUploadMessage(`Image "${file.name}" uploaded successfully!`)
@@ -64,7 +74,7 @@ export default function WardrobePage() {
         showUploadMessage(`Error uploading "${file.name}".`)
       }
     },
-    [showUploadMessage],
+    [showUploadMessage, token],
   )
 
   const handleFileSelect = useCallback(
@@ -81,6 +91,9 @@ export default function WardrobePage() {
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/v1/images/${imageId}`, {
         method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       })
       if (response.ok) {
         setImages((prev) => prev.filter((img) => img.id !== imageId))
@@ -92,25 +105,36 @@ export default function WardrobePage() {
       showUploadMessage("Error deleting item.")
     }
     setMoreOptionsOpenId(null)
-  }, [showUploadMessage])
+  }, [showUploadMessage, token])
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login")
+      return
+    }
+  }, [user, loading, router])
 
   useEffect(() => {
     const fetchImages = async () => {
-      setLoading(true)
+      setWardrobeLoading(true)
       setError(null)
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/v1/images/`)
+        const res = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        })
         if (!res.ok) throw new Error("Failed to fetch images")
         const data = await res.json()
         setImages(data)
       } catch (err: any) {
         setError(err.message || "Unknown error")
       } finally {
-        setLoading(false)
+        setWardrobeLoading(false)
       }
     }
     fetchImages()
-  }, [])
+  }, [token])
 
   const filteredImages = images.filter(
     (img) =>
@@ -156,7 +180,7 @@ export default function WardrobePage() {
               My Wardrobe
             </h1>
             <p className="text-gray-600 text-lg">
-              {loading
+              {wardrobeLoading
                 ? "Loading your collection..."
                 : `${filteredImages.length} ${filteredImages.length === 1 ? "item" : "items"} in your collection`}
             </p>
@@ -197,7 +221,7 @@ export default function WardrobePage() {
             </div>
           </div>
 
-          {loading && <LoadingSkeleton />}
+          {wardrobeLoading && <LoadingSkeleton />}
 
           {error && (
             <div className="text-center py-20">
@@ -217,7 +241,7 @@ export default function WardrobePage() {
             </div>
           )}
 
-          {!loading && !error && filteredImages.length === 0 && searchTerm && (
+          {!wardrobeLoading && !error && filteredImages.length === 0 && searchTerm && (
             <div className="text-center py-20">
               <div className="bg-white rounded-3xl p-10 max-w-md mx-auto shadow-lg border border-gray-100">
                 <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -236,7 +260,7 @@ export default function WardrobePage() {
             </div>
           )}
 
-          {!loading && !error && images.length === 0 && !searchTerm && (
+          {!wardrobeLoading && !error && images.length === 0 && !searchTerm && (
             <div className="text-center py-24">
               <div className="bg-white rounded-3xl p-12 max-w-lg mx-auto shadow-lg border border-gray-100">
                 <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-8">
@@ -255,7 +279,7 @@ export default function WardrobePage() {
             </div>
           )}
 
-          {!loading && !error && filteredImages.length > 0 && (
+          {!wardrobeLoading && !error && filteredImages.length > 0 && (
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filteredImages.map((img) => (
                 <div
@@ -266,7 +290,7 @@ export default function WardrobePage() {
                   {/* Image Container */}
                   <div className="relative aspect-[4/5] overflow-hidden bg-gray-50">
                     <img
-                      src={img.url || "/placeholder.svg"}
+                      src={`/api/proxy-image/${img.id}`}
                       alt={img.description || "Clothing item"}
                       className="w-full h-full object-contain"
                     />
@@ -348,7 +372,7 @@ export default function WardrobePage() {
 
               <div className="rounded-2xl overflow-hidden shadow-lg mb-6 bg-gray-50">
                 <img
-                  src={selectedImage.url || "/placeholder.svg"}
+                  src={`/api/proxy-image/${selectedImage.id}`}
                   alt={selectedImage.description || "Clothing item"}
                   className="w-full max-h-96 object-contain"
                 />
