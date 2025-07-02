@@ -1,6 +1,7 @@
-import pytest
 import uuid
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from app.crud.image import create_image, get_image, list_images
 from app.models.image import Image
 
@@ -55,7 +56,8 @@ async def test_get_image_not_found():
 async def test_list_images():
     db = AsyncMock()
     images = [
-        Image(description=f"desc{i}", object_name=f"obj{i}.png") for i in range(3)]
+        Image(description=f"desc{i}", object_name=f"obj{i}.png") for i in range(3)
+    ]
     mock_result = MagicMock()
     mock_scalars = MagicMock()
     mock_scalars.all.return_value = images
