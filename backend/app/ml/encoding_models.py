@@ -1,10 +1,11 @@
-from typing import Union, List, Optional
-from torchvision import transforms
-from PIL import Image
-import numpy as np
-import torch
+from typing import List, Optional, Union
+
 import clip
 import cv2
+import numpy as np
+import torch
+from PIL import Image
+from torchvision import transforms
 
 
 class DinoV2ImageEncoder:
@@ -21,7 +22,7 @@ class DinoV2ImageEncoder:
         transform (transforms.Compose): The image transformation pipeline.
     """
 
-    def __init__(self, model_name: str = 'dinov2_vitb14', device: Optional[str] = None):
+    def __init__(self, model_name: str = "dinov2_vitb14", device: Optional[str] = None):
         """
         Initializes the image encoder.
 
@@ -39,48 +40,59 @@ class DinoV2ImageEncoder:
         print(f"Using device: {self.device}")
 
         print(f"Loading model '{model_name}'...")
-        self.model = torch.hub.load('facebookresearch/dinov2', model_name)
+        self.model = torch.hub.load("facebookresearch/dinov2", model_name)
         self.model.to(self.device)
         self.model.eval()  # Set the model to evaluation mode
         print("Model loaded successfully.")
 
         # Standard transformations for ViT/DINOv2 models
-        self.transform = transforms.Compose([
-            transforms.Resize(256, interpolation=transforms.InterpolationMode.BICUBIC),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ])
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    256, interpolation=transforms.InterpolationMode.BICUBIC
+                ),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                ),
+            ]
+        )
 
     def _get_device(self, device: Optional[str]) -> torch.device:
         """Determines the computation device."""
-        if device and torch.cuda.is_available() and device.lower() == 'cuda':
+        if device and torch.cuda.is_available() and device.lower() == "cuda":
             return torch.device("cuda")
-        elif device and device.lower() == 'cpu':
+        elif device and device.lower() == "cpu":
             return torch.device("cpu")
 
         # Auto-select
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def _load_and_preprocess_image(self, image_input: Union[str, Image.Image]) -> torch.Tensor:
+    def _load_and_preprocess_image(
+        self, image_input: Union[str, Image.Image]
+    ) -> torch.Tensor:
         """
         Loads and preprocesses a single image.
 
         Args:
-            image_input (Union[str, Image.Image]): The path to the image file, a URL, or a PIL.Image object.
+            image_input (Union[str, Image.Image]): The path to the image file, a URL,
+            or a PIL.Image object.
 
         Returns:
             torch.Tensor: The preprocessed image tensor.
         """
         if isinstance(image_input, str):
             image = Image.open(image_input)
-        image = image.convert('RGB')
+        image = image.convert("RGB")
 
         return self.transform(image)
 
-    def encode(self,
-               image_inputs: Union[str, Image.Image, List[Union[str, Image.Image]]],
-               batch_size: int = 64) -> np.ndarray:
+    def encode(
+        self,
+        image_inputs: Union[str, Image.Image, List[Union[str, Image.Image]]],
+        batch_size: int = 64,
+    ) -> np.ndarray:
         """
         Encodes a single image or a batch of images into embeddings using mini-batching.
 
@@ -104,9 +116,11 @@ class DinoV2ImageEncoder:
         all_embeddings = []
 
         for i in range(0, len(image_inputs), batch_size):
-            batch_inputs = image_inputs[i:i + batch_size]
+            batch_inputs = image_inputs[i : i + batch_size]
 
-            image_tensors = [self._load_and_preprocess_image(img) for img in batch_inputs]
+            image_tensors = [
+                self._load_and_preprocess_image(img) for img in batch_inputs
+            ]
             batch_tensor = torch.stack(image_tensors).to(self.device)
 
             with torch.no_grad():
@@ -159,7 +173,7 @@ class ClipEncoder:
     def get_image_embeddings(
         self,
         images: Union[Image.Image, np.ndarray, List[Union[Image.Image, np.ndarray]]],
-        batch_size: int = 32
+        batch_size: int = 32,
     ) -> np.ndarray:
         """
         Generate embeddings for input images with efficient batch processing.
@@ -187,7 +201,7 @@ class ClipEncoder:
 
         # Batch processing loop
         for i in range(0, len(images), batch_size):
-            batch = images[i:i + batch_size]
+            batch = images[i : i + batch_size]
             batch_tensors = []
 
             for img in batch:
@@ -204,16 +218,19 @@ class ClipEncoder:
             # Generate embeddings
             with torch.no_grad():
                 batch_embeds = self.model.encode_image(batch_tensors)
-                batch_embeds /= batch_embeds.norm(dim=-1, keepdim=True)  # L2 normalization
+                batch_embeds /= batch_embeds.norm(
+                    dim=-1, keepdim=True
+                )  # L2 normalization
                 image_embeddings.append(batch_embeds.cpu().numpy())
         # Combine all batch results
         return np.vstack(image_embeddings)
 
     def get_texts_embeddings(
-            self,
-            texts: Union[str, List[str]],
-            batch_size: int = 128,
-            context_length: int = 77) -> np.ndarray:
+        self,
+        texts: Union[str, List[str]],
+        batch_size: int = 128,
+        context_length: int = 77,
+    ) -> np.ndarray:
         """
             Generate embeddings for input text with efficient batch processing.
 
@@ -235,13 +252,11 @@ class ClipEncoder:
 
         embeddings = []
         for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+            batch = texts[i : i + batch_size]
 
             # Tokenize with truncation
             batch_tokens = clip.tokenize(
-                batch,
-                truncate=True,
-                context_length=context_length
+                batch, truncate=True, context_length=context_length
             ).to(self.device)
 
             # Generate embeddings
