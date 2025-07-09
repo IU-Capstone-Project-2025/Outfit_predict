@@ -5,7 +5,7 @@ import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { User, Settings, Camera, Trash2, Eye, Shirt } from "lucide-react"
 import Link from "next/link"
-import { getApiBaseUrl } from "@/lib/utils"
+import { getApiBaseUrl, apiUrl } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 
@@ -36,7 +36,7 @@ export default function WardrobePage() {
       setWardrobeLoading(true)
       setError(null)
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
+        const res = await fetch(apiUrl('v1/images/'), {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
@@ -57,7 +57,7 @@ export default function WardrobePage() {
   // Delete image
   const deleteImage = useCallback(async (imageId: string) => {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/v1/images/${imageId}`, {
+      const res = await fetch(apiUrl(`v1/images/${imageId}`), {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -100,7 +100,7 @@ export default function WardrobePage() {
       <div className="relative z-10 container mx-auto px-4 py-12">
         {/* Profile Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-full px-6 py-2 mb-8">
+          <div className="inline-flex items-center bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-full px-6 py-2 mb-8">
             <span className="text-sm text-gray-300">Your Style Profile</span>
           </div>
 
@@ -119,15 +119,15 @@ export default function WardrobePage() {
 
         {/* Stats Section */}
         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
-          <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6 text-center">
+          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
             <div className="text-3xl font-bold text-white mb-2">{images.length}</div>
             <div className="text-gray-400">Wardrobe Items</div>
           </div>
-          <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6 text-center">
+          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
             <div className="text-3xl font-bold text-white mb-2">42</div>
             <div className="text-gray-400">Outfits Generated</div>
           </div>
-          <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6 text-center">
+          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
             <div className="text-3xl font-bold text-white mb-2">15</div>
             <div className="text-gray-400">Days Active</div>
           </div>
@@ -178,7 +178,7 @@ export default function WardrobePage() {
               {images.map((image, index) => (
                 <div
                   key={image.id || index}
-                  className="group relative bg-gray-900 rounded-2xl overflow-hidden border border-gray-700 hover:border-gray-500 transition-all duration-200 h-72 flex flex-col"
+                  className="group relative bg-gray-800/30 rounded-3xl overflow-hidden border border-gray-700/50 hover:border-gray-500 transition-all duration-200 h-72 flex flex-col"
                 >
                   <div className="flex-1 flex items-center justify-center bg-black aspect-square h-full">
                     <ProtectedImage

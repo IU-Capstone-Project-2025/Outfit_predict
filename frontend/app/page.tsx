@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef } from "react"
 import { Upload, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
-import { getApiBaseUrl } from "@/lib/utils"
+import { getApiBaseUrl, apiUrl } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
@@ -35,7 +35,7 @@ export default function OutfitGeneratorMain() {
     const fetchImages = async () => {
       setWardrobeLoading(true)
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
+        const res = await fetch(apiUrl('v1/images/'), {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
@@ -72,7 +72,7 @@ export default function OutfitGeneratorMain() {
     const formData = new FormData()
     formData.append("file", file)
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
+      const response = await fetch(apiUrl('v1/images/'), {
         method: "POST",
         body: formData,
         headers: {
@@ -173,7 +173,7 @@ export default function OutfitGeneratorMain() {
     try {
       const formData = new FormData()
       imagesToSend.forEach((file) => formData.append("files", file))
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/outfits/search-similar/`, {
+      const response = await fetch(apiUrl('v1/outfits/search-similar/'), {
         method: "POST",
         body: formData,
         headers: {
@@ -183,7 +183,7 @@ export default function OutfitGeneratorMain() {
       if (!response.ok) throw new Error("Failed to generate outfits")
       const recs = await response.json()
       // Fetch all wardrobe images
-      const imagesRes = await fetch(`${getApiBaseUrl()}/api/v1/images/`, {
+      const imagesRes = await fetch(apiUrl('v1/images/'), {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },

@@ -6,5 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_URL;
+  // Remove trailing slash if present
+  return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+}
+
+// Helper to join API base with a path, avoiding double slashes
+export function apiUrl(path: string) {
+  return `${getApiBaseUrl()}/${path.replace(/^\//, "")}`;
 }
