@@ -1,3 +1,4 @@
+# trained model - use default YOLOv8 model if custom model not available
 import os
 from typing import List, Tuple
 
@@ -7,8 +8,17 @@ import numpy as np
 from app.ml.encoding_models import DinoV2ImageEncoder
 from ultralytics import SAM, YOLO
 
-# trained model
-model = YOLO("app/ml/best.pt")
+try:
+    if os.path.exists("app/ml/best.pt"):
+        print("✅ Loading custom YOLO model")
+        model = YOLO("app/ml/best.pt")
+    else:
+        print("⚠️ Custom YOLO model not found, using default YOLOv8n")
+        model = YOLO("yolov8n.pt")  # Will download automatically
+except Exception as e:
+    print(f"❌ Error loading YOLO model: {e}")
+    print("Using default YOLOv8n model")
+    model = YOLO("yolov8n.pt")
 
 
 def get_clothes_from_img(img_path):
@@ -95,8 +105,38 @@ class FashionSegmentationModel:
             sam_model_path: Path to SAM .pt weights file
             device: Hardware device for inference ('' for auto-detection)
         """
-        self.detection_model = YOLO(yolo_model_path)
-        self.segmentation_model = SAM(sam_model_path)
+        try:
+            if os.path.exists(yolo_model_path):
+                file_size = os.path.getsize(yolo_model_path)
+                print(
+                    f"✅ Found custom YOLO model at {yolo_model_path} (size: {file_size} bytes)"
+                )
+                self.detection_model = YOLO(yolo_model_path)
+            else:
+                print(
+                    f"⚠️ Warning: YOLO model not found at {yolo_model_path}, using default YOLOv8n"
+                )
+                self.detection_model = YOLO("yolov8n.pt")
+        except Exception as e:
+            print(f"❌ Error loading YOLO model: {e}")
+            self.detection_model = YOLO("yolov8n.pt")
+
+        try:
+            if os.path.exists(sam_model_path):
+                file_size = os.path.getsize(sam_model_path)
+                print(
+                    f"✅ Found custom SAM model at {sam_model_path} (size: {file_size} bytes)"
+                )
+                self.segmentation_model = SAM(sam_model_path)
+            else:
+                print(
+                    f"⚠️ Warning: SAM model not found at {sam_model_path}, using default SAM"
+                )
+                self.segmentation_model = SAM("sam_b.pt")  # Will download automatically
+        except Exception as e:
+            print(f"❌ Error loading SAM model: {e}")
+            self.segmentation_model = SAM("sam_b.pt")
+
         self.device = device
 
     def _detect_clothes(self, img_path: str) -> List[Tuple[str, List[int]]]:
