@@ -5,7 +5,7 @@ from datetime import datetime
 from io import BytesIO
 
 import cv2
-from app.ml.clothing_detector import get_clothes_from_img
+from app.ml.outfit_processing import get_clothes_from_img
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 

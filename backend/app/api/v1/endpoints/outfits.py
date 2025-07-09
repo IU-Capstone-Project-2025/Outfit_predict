@@ -9,8 +9,10 @@ import cv2
 from app.crud import image as crud_image
 from app.crud import outfit as outfit_crud
 from app.deps import get_db, get_minio
-from app.ml.clothing_detector import get_clothes_from_img
+from app.ml.outfit_processing import get_clothes_from_img
 from app.ml.image_search import ImageSearchEngine
+from app.ml.outfit_processing import FashionSegmentationModel
+from app.ml.encoding_models import DinoV2ImageEncoder
 from app.schemas.outfit import OutfitRead
 from app.storage.minio_client import MinioService
 from app.storage.qdrant_client import QdrantService
@@ -18,6 +20,17 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.ml.ml_models import fashion_segmentation_model, image_search_engine, qdrant_service
+
+
+def get_fashion_segmentation_model():
+    return fashion_segmentation_model
+
+def get_image_search_engine():
+    return image_search_engine
+
+def get_qdrant_service():
+    return qdrant_service
 
 router = APIRouter(prefix="/outfits", tags=["outfits"])
 
@@ -114,6 +127,8 @@ async def search_similar_outfits(
     request: Request,
     db: AsyncSession = Depends(get_db),
     minio: MinioService = Depends(get_minio),
+    image_search: ImageSearchEngine = Depends(get_image_search_engine),
+    qdrant: QdrantService = Depends(get_qdrant_service),
 ):
     """
     Search for similar outfits based on the user's wardrobe (all images in the DB).
@@ -151,8 +166,6 @@ async def search_similar_outfits(
         )
 
     # 3. Find similar outfits using the new two-stage algorithm
-    qdrant = QdrantService()
-    image_search = ImageSearchEngine()
     wardrobe_object_names = [item.object_name for item in valid_wardrobe_items]
     recommended_outfits = await image_search.find_similar_outfit(
         images=pil_images, wardrobe_object_names=wardrobe_object_names, qdrant=qdrant
@@ -185,6 +198,8 @@ async def upload_and_process_outfit(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     minio: MinioService = Depends(get_minio),
+    image_search: ImageSearchEngine = Depends(get_image_search_engine),
+    qdrant: QdrantService = Depends(get_qdrant_service),
 ):
     """
     Upload an outfit image, store it, detect clothing, and add detected items to Qdrant.
@@ -217,12 +232,81 @@ async def upload_and_process_outfit(
             )
 
         # 4. Add each detected clothing item to Qdrant
-        qdrant = QdrantService()
-        image_search = ImageSearchEngine()
         clothing_info = []
         for name, cropped_img in detected_clothes:
             # Convert cropped_img (numpy array) to PIL Image
 
+            if cropped_img.size == 0:
+                continue  # skip empty crops
+            pil_img = Image.fromarray(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
+            image_id = str(uuid.uuid4())
+            await image_search.add_image_to_index(
+                image=pil_img, image_id=image_id, outfit_id=outfit_id, qdrant=qdrant
+            )
+            clothing_info.append({"name": name, "image_id": image_id})
+
+        # 5. Build proxy URL
+        proxy_url = request.url_for("get_outfit_file", object_name=outfit.object_name)
+
+        # 6. Return outfit metadata and clothing info
+        return {
+            "id": outfit.id,
+            "object_name": outfit.object_name,
+            "created_at": outfit.created_at,
+            "url": str(proxy_url),
+            "clothing_items": clothing_info,
+        }
+    finally:
+        os.remove(tmp_path)
+
+
+@router.post("/split-outfit-to-clothes/", response_model=OutfitRead)
+async def split_outfit_to_clothes(
+    request: Request,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    minio: MinioService = Depends(get_minio),
+    segmentation_model: FashionSegmentationModel = Depends(get_fashion_segmentation_model),
+    image_search: ImageSearchEngine = Depends(get_image_search_engine),
+    qdrant: QdrantService = Depends(get_qdrant_service),
+):
+    """
+    Upload an outfit image, segment it into clothes using FashionSegmentationModel, and return the same response as upload_and_process_outfit.
+    """
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    # Save uploaded file to a temp file for OpenCV
+    with tempfile.NamedTemporaryFile(
+        delete=False, suffix=os.path.splitext(file.filename)[-1]
+    ) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        # 1. Upload to MinIO
+        object_name = minio.save_file(content, content_type=file.content_type)
+
+        # 2. Create outfit record in DB
+        outfit = await outfit_crud.create_outfit(db, object_name)
+        outfit_id = str(outfit.id)
+
+        # 3. Segment clothing items using FashionSegmentationModel
+        result = segmentation_model.get_segment_images(tmp_path)
+        if not result or len(result) == 0:
+            raise HTTPException(
+                status_code=422, detail="No clothing items detected in the image."
+            )
+        segmented_clothes, cloth_names = result
+        if len(segmented_clothes) == 0:
+            raise HTTPException(
+                status_code=422, detail="No clothing items detected in the image."
+            )
+
+        # 4. Add each detected clothing item to Qdrant
+        clothing_info = []
+        for name, cropped_img in zip(cloth_names, segmented_clothes):
             if cropped_img.size == 0:
                 continue  # skip empty crops
             pil_img = Image.fromarray(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
