@@ -71,3 +71,33 @@ async def get_image_file(
         minio.get_stream(image.object_name),
         media_type="application/octet-stream",
     )
+
+
+@router.delete("/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_image(
+    image_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    minio: MinioService = Depends(get_minio),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete an image and its associated file from all storage systems."""
+    # Get the image to ensure it exists and user owns it
+    image = await crud_image.get_image(db, image_id, current_user.id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Delete from MinIO
+    minio_success = minio.delete_file(image.object_name)
+    if not minio_success:
+        # Log warning but continue with database deletion
+        print(f"Warning: Failed to delete file {image.object_name} from MinIO")
+
+    # Delete from PostgreSQL
+    deleted_image = await crud_image.delete_image(db, image_id, current_user.id)
+    if not deleted_image:
+        raise HTTPException(status_code=404, detail="Failed to delete image from database")
+
+    # Note: Images are not typically stored in Qdrant, only outfit vectors are
+    # If you have image vectors in Qdrant, add deletion logic here
+
+    return None  # 204 No Content

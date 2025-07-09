@@ -36,3 +36,18 @@ async def list_images(
     )
     res = await db.execute(stmt)
     return list(res.scalars().all())
+
+
+async def delete_image(
+    db: AsyncSession, image_id: uuid.UUID, user_id: uuid.UUID
+) -> Image | None:
+    """Delete an image, ensuring user ownership."""
+    # First get the image to ensure it exists and user owns it
+    image = await get_image(db, image_id, user_id)
+    if not image:
+        return None
+    
+    # Delete from database
+    await db.delete(image)
+    await db.commit()
+    return image

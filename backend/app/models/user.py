@@ -18,3 +18,4 @@ class User(Base):
     )
 
     images = relationship("Image", back_populates="owner")
+    outfits = relationship("Outfit", back_populates="owner")

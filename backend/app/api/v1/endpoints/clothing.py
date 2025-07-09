@@ -5,15 +5,20 @@ from datetime import datetime
 from io import BytesIO
 
 import cv2
+from app.deps import get_current_user
 from app.ml.clothing_detector import get_clothes_from_img
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from app.models.user import User
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/clothing", tags=["clothing"])
 
 
 @router.post("/detect-clothes/")
-async def detect_clothes(file: UploadFile = File(...)):
+async def detect_clothes(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
     """
     Endpoint to detect clothes in an uploaded image.
     Returns a zip file containing all detected clothing items.

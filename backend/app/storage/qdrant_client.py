@@ -83,3 +83,52 @@ class QdrantService:
         # If an outfit can have more than `limit` items, you'll need to
         # loop using the `next_offset` until it is None.
         return records
+
+    # --- delete -------------------------------------------------------------
+    def delete_point(self, point_id: str) -> bool:
+        """Delete a single point by its ID from the collection."""
+        try:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.PointIdsList(points=[point_id])
+            )
+            return True
+        except Exception as exc:
+            print(f"Error deleting point {point_id}: {exc}")
+            return False
+
+    def delete_points(self, point_ids: list[str]) -> dict[str, bool]:
+        """Delete multiple points by their IDs from the collection."""
+        results = {}
+        for point_id in point_ids:
+            results[point_id] = self.delete_point(point_id)
+        return results
+
+    def delete_outfit_vectors(self, outfit_id: str) -> bool:
+        """Delete all vectors for a specific outfit_id."""
+        try:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="outfit_id",
+                                match=models.MatchValue(value=outfit_id),
+                            )
+                        ]
+                    )
+                )
+            )
+            return True
+        except Exception as exc:
+            print(f"Error deleting vectors for outfit {outfit_id}: {exc}")
+            return False
+
+    def point_exists(self, point_id: str) -> bool:
+        """Check if a point exists in the collection."""
+        try:
+            self.get_point(point_id)
+            return True
+        except ValueError:
+            return False
