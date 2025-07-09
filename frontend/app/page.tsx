@@ -96,6 +96,30 @@ export default function OutfitGeneratorLanding() {
     }
   }, [showUploadMessage, token])
 
+  // Concurrency-limited upload queue
+  const MAX_CONCURRENT_UPLOADS = 10;
+  const uploadQueueRef = useRef<File[]>([]);
+  const activeUploadsRef = useRef(0);
+
+  const processQueue = useCallback(() => {
+    if (activeUploadsRef.current >= MAX_CONCURRENT_UPLOADS || uploadQueueRef.current.length === 0) return;
+    while (activeUploadsRef.current < MAX_CONCURRENT_UPLOADS && uploadQueueRef.current.length > 0) {
+      const file = uploadQueueRef.current.shift();
+      if (file) {
+        activeUploadsRef.current++;
+        uploadImage(file).finally(() => {
+          activeUploadsRef.current--;
+          processQueue();
+        });
+      }
+    }
+  }, [uploadImage]);
+
+  const enqueueFiles = useCallback((files: File[]) => {
+    uploadQueueRef.current.push(...files);
+    processQueue();
+  }, [processQueue]);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(true)
@@ -106,20 +130,19 @@ export default function OutfitGeneratorLanding() {
     setIsDragOver(false)
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-
-    const droppedFiles = Array.from(e.dataTransfer.files).filter((file) => file.type === "image/jpeg")
-    droppedFiles.forEach(uploadImage) // Upload each dropped image
-  }, [uploadImage])
-
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files).filter((file) => file.type === "image/jpeg")
-      selectedFiles.forEach(uploadImage) // Upload each selected image
+      const selectedFiles = Array.from(e.target.files).filter((file) => ["image/jpeg", "image/png"].includes(file.type));
+      enqueueFiles(selectedFiles);
     }
-  }, [uploadImage])
+  }, [enqueueFiles]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const droppedFiles = Array.from(e.dataTransfer.files).filter((file) => ["image/jpeg", "image/png"].includes(file.type));
+    enqueueFiles(droppedFiles);
+  }, [enqueueFiles]);
 
   const removeFile = useCallback((index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index))
@@ -251,7 +274,8 @@ export default function OutfitGeneratorLanding() {
               <p className="text-gray-500 mb-4">Drag and drop your photos here, or click to browse</p>
               <input
                 type="file"
-                accept="image/jpeg"
+                accept="image/jpeg,image/png"
+                multiple
                 onChange={handleFileSelect}
                 className="hidden"
                 id="file-upload"
@@ -261,7 +285,7 @@ export default function OutfitGeneratorLanding() {
                   <span>Choose Files</span>
                 </Button>
               </label>
-              <p className="text-xs text-gray-400 mt-2">Supports JPG format only</p>
+              <p className="text-xs text-gray-400 mt-2">Supports JPG and PNG format only</p>
             </div>
 
             {/* Upload Message */}

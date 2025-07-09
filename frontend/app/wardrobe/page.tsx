@@ -77,15 +77,36 @@ export default function WardrobePage() {
     [showUploadMessage, token],
   )
 
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files) {
-        const selectedFiles = Array.from(e.target.files).filter((file) => file.type === "image/jpeg")
-        selectedFiles.forEach(uploadImage)
+  // Concurrency-limited upload queue
+  const MAX_CONCURRENT_UPLOADS = 10;
+  const uploadQueueRef = useRef<File[]>([]);
+  const activeUploadsRef = useRef(0);
+
+  const processQueue = useCallback(() => {
+    if (activeUploadsRef.current >= MAX_CONCURRENT_UPLOADS || uploadQueueRef.current.length === 0) return;
+    while (activeUploadsRef.current < MAX_CONCURRENT_UPLOADS && uploadQueueRef.current.length > 0) {
+      const file = uploadQueueRef.current.shift();
+      if (file) {
+        activeUploadsRef.current++;
+        uploadImage(file).finally(() => {
+          activeUploadsRef.current--;
+          processQueue();
+        });
       }
-    },
-    [uploadImage],
-  )
+    }
+  }, [uploadImage]);
+
+  const enqueueFiles = useCallback((files: File[]) => {
+    uploadQueueRef.current.push(...files);
+    processQueue();
+  }, [processQueue]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files).filter((file) => ["image/jpeg", "image/png"].includes(file.type));
+      enqueueFiles(selectedFiles);
+    }
+  }, [enqueueFiles]);
 
   const handleDeleteImage = useCallback(async (imageId: string) => {
     try {
@@ -200,11 +221,11 @@ export default function WardrobePage() {
               <div>
                 <input
                   type="file"
-                  accept="image/jpeg"
+                  accept="image/jpeg,image/png"
+                  multiple
                   onChange={handleFileSelect}
                   className="hidden"
                   id="wardrobe-file-upload"
-                  multiple
                 />
                 <label htmlFor="wardrobe-file-upload">
                   <Button
