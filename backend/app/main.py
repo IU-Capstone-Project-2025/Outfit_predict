@@ -11,14 +11,14 @@ app = FastAPI(title="Picture Storage API")
 
 origins = [
     "http://localhost:3000",  # Frontend URL , local host
-    "http://outfitpredict.ru",
-    "*",  # Allows all origins (not recommended for production)
+    "https://outfitpredict.ru",  # Production frontend
+    "http://outfitpredict.ru",  # HTTP redirect (if needed)
 ]
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,  # Use specific origins instead of "*"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
