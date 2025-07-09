@@ -106,7 +106,7 @@ export default function AboutPage() {
 
           {/* CTA Button */}
           <div className="mb-20">
-            <Link href="/profile">
+            <Link href="/">
               <button className="inline-flex items-center bg-white text-black hover:bg-gray-100 rounded-full px-8 py-4 text-base font-semibold transition-all duration-300 group shadow-lg hover:shadow-xl">
                 Upload & Generate
                 <div className="ml-3 w-6 h-6 bg-black rounded-full flex items-center justify-center group-hover:translate-x-1 transition-transform">
