@@ -46,7 +46,7 @@ async def delete_image(
     image = await get_image(db, image_id, user_id)
     if not image:
         return None
-    
+
     # Delete from database
     await db.delete(image)
     await db.commit()

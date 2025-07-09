@@ -90,7 +90,7 @@ class QdrantService:
         try:
             self.client.delete(
                 collection_name=self.collection_name,
-                points_selector=models.PointIdsList(points=[point_id])
+                points_selector=models.PointIdsList(points=[point_id]),
             )
             return True
         except Exception as exc:
@@ -118,7 +118,7 @@ class QdrantService:
                             )
                         ]
                     )
-                )
+                ),
             )
             return True
         except Exception as exc:

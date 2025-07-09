@@ -8,11 +8,14 @@ from uuid import UUID
 import cv2
 from app.crud import image as crud_image
 from app.crud import outfit as outfit_crud
-from app.deps import get_db, get_minio, get_current_user
-from app.ml.outfit_processing import get_clothes_from_img
+from app.deps import get_current_user, get_db, get_minio
 from app.ml.image_search import ImageSearchEngine
-from app.ml.outfit_processing import FashionSegmentationModel
-from app.ml.encoding_models import DinoV2ImageEncoder
+from app.ml.ml_models import (
+    fashion_segmentation_model,
+    image_search_engine,
+    qdrant_service,
+)
+from app.ml.outfit_processing import FashionSegmentationModel, get_clothes_from_img
 from app.models.outfit import Outfit
 from app.models.user import User
 from app.schemas.outfit import OutfitRead
@@ -23,17 +26,20 @@ from fastapi.responses import StreamingResponse
 from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.ml.ml_models import fashion_segmentation_model, image_search_engine, qdrant_service
 
 
 def get_fashion_segmentation_model():
     return fashion_segmentation_model
 
+
 def get_image_search_engine():
     return image_search_engine
 
+
 def get_qdrant_service():
     return qdrant_service
+
+
 router = APIRouter(prefix="/outfits", tags=["outfits"])
 
 
@@ -76,7 +82,9 @@ async def get_outfits(
     current_user: User = Depends(get_current_user),
 ):
     """Get a list of outfits."""
-    outfits = await outfit_crud.list_outfits(db, current_user.id, skip=skip, limit=limit)
+    outfits = await outfit_crud.list_outfits(
+        db, current_user.id, skip=skip, limit=limit
+    )
     return [
         OutfitRead(
             id=outfit.id,
@@ -90,8 +98,8 @@ async def get_outfits(
 
 @router.get("/{outfit_id}", response_model=OutfitRead)
 async def get_outfit(
-    request: Request, 
-    outfit_id: UUID, 
+    request: Request,
+    outfit_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -116,10 +124,12 @@ async def get_outfit_file(
 ):
     """Stream an outfit image from MinIO."""
     # Verify user owns this outfit
-    outfit = await outfit_crud.get_outfit_by_object_name(db, object_name, current_user.id)
+    outfit = await outfit_crud.get_outfit_by_object_name(
+        db, object_name, current_user.id
+    )
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
-    
+
     try:
         obj = minio.get_stream(object_name)
 
@@ -218,12 +228,9 @@ async def upload_and_process_outfit(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     minio: MinioService = Depends(get_minio),
-<<<<<<< HEAD
     current_user: User = Depends(get_current_user),
-=======
     image_search: ImageSearchEngine = Depends(get_image_search_engine),
     qdrant: QdrantService = Depends(get_qdrant_service),
->>>>>>> 99d2be2839b89d44ab6f981c8a753e16cedfc45e
 ):
     """
     Upload an outfit image, store it, detect clothing, and add detected items to Qdrant.
@@ -284,7 +291,6 @@ async def upload_and_process_outfit(
         os.remove(tmp_path)
 
 
-<<<<<<< HEAD
 @router.delete("/{outfit_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_outfit(
     outfit_id: UUID,
@@ -312,22 +318,29 @@ async def delete_outfit(
     # Delete from PostgreSQL
     deleted_outfit = await outfit_crud.delete_outfit(db, outfit_id, current_user.id)
     if not deleted_outfit:
-        raise HTTPException(status_code=404, detail="Failed to delete outfit from database")
+        raise HTTPException(
+            status_code=404, detail="Failed to delete outfit from database"
+        )
 
     return None  # 204 No Content
-=======
+
+
 @router.post("/split-outfit-to-clothes/", response_model=OutfitRead)
 async def split_outfit_to_clothes(
     request: Request,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     minio: MinioService = Depends(get_minio),
-    segmentation_model: FashionSegmentationModel = Depends(get_fashion_segmentation_model),
+    segmentation_model: FashionSegmentationModel = Depends(
+        get_fashion_segmentation_model
+    ),
     image_search: ImageSearchEngine = Depends(get_image_search_engine),
     qdrant: QdrantService = Depends(get_qdrant_service),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Upload an outfit image, segment it into clothes using FashionSegmentationModel, and return the same response as upload_and_process_outfit.
+    Upload an outfit image, segment it into clothes using FashionSegmentationModel, and return
+    the same response as upload_and_process_outfit.
     """
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
@@ -345,7 +358,7 @@ async def split_outfit_to_clothes(
         object_name = minio.save_file(content, content_type=file.content_type)
 
         # 2. Create outfit record in DB
-        outfit = await outfit_crud.create_outfit(db, object_name)
+        outfit = await outfit_crud.create_outfit(db, current_user.id, object_name)
         outfit_id = str(outfit.id)
 
         # 3. Segment clothing items using FashionSegmentationModel
@@ -385,4 +398,3 @@ async def split_outfit_to_clothes(
         }
     finally:
         os.remove(tmp_path)
->>>>>>> 99d2be2839b89d44ab6f981c8a753e16cedfc45e

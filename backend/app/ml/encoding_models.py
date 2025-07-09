@@ -252,7 +252,7 @@ class ClipEncoder:
 
         embeddings = []
         for i in range(0, len(texts), batch_size):
-            batch = texts[i: i + batch_size]
+            batch = texts[i : i + batch_size]
 
             # Tokenize with truncation
             batch_tokens = clip.tokenize(

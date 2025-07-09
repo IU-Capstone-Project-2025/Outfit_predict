@@ -1,6 +1,11 @@
+import os
+from typing import List, Tuple
+
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
-from ultralytics import YOLO
+from app.ml.encoding_models import DinoV2ImageEncoder
+from ultralytics import SAM, YOLO
 
 # trained model
 model = YOLO("app/ml/best.pt")
@@ -63,16 +68,6 @@ def get_clothes_from_img(img_path):
     return parts
 
 
-import matplotlib.pyplot as plt
-from typing import List, Tuple
-from ultralytics import YOLO
-from ultralytics import SAM
-from app.ml.encoding_models import DinoV2ImageEncoder
-import numpy as np
-import cv2
-import os
-
-
 class FashionSegmentationModel:
     """
     A comprehensive model for detecting and segmenting fashion items in images.
@@ -128,9 +123,16 @@ class FashionSegmentationModel:
 
         # Clothing class mapping
         classes = {
-            0: 'sunglass', 1: 'hat', 2: 'jacket', 3: 'shirt',
-            4: 'pants', 5: 'shorts', 6: 'skirt', 7: 'dress',
-            8: 'bag', 9: 'shoe'
+            0: "sunglass",
+            1: "hat",
+            2: "jacket",
+            3: "shirt",
+            4: "pants",
+            5: "shorts",
+            6: "skirt",
+            7: "dress",
+            8: "bag",
+            9: "shoe",
         }
 
         # Perform detection
@@ -193,7 +195,7 @@ class FashionSegmentationModel:
             bboxes=bounding_boxes,
             verbose=False,
             save=False,
-            device=self.device
+            device=self.device,
         )
 
         # Extract normalized polygons
@@ -223,8 +225,8 @@ class FashionSegmentationModel:
 
             plt.subplot(2, 2, i + 1)
             plt.imshow(cropped)
-            plt.axis('off')
-            plt.title(f'{name}')
+            plt.axis("off")
+            plt.title(f"{name}")
 
         plt.tight_layout()
         plt.show()
@@ -262,12 +264,19 @@ class FashionSegmentationModel:
         for i, (name, bbox) in enumerate(zip(cloth_names, detected_bboxes)):
             xmin, ymin, xmax, ymax = bbox
             cv2.rectangle(display_img, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
-            cv2.putText(display_img, name, (xmin, ymin - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            cv2.putText(
+                display_img,
+                name,
+                (xmin, ymin - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.9,
+                (0, 255, 0),
+                2,
+            )
 
         plt.imshow(display_img)
-        plt.title('Detected Objects')
-        plt.axis('off')
+        plt.title("Detected Objects")
+        plt.axis("off")
 
         # Panel 2: Segmentation contours
         plt.subplot(132)
@@ -298,22 +307,35 @@ class FashionSegmentationModel:
 
             try:
                 # Draw contours
-                cv2.polylines(contour_image, [points], isClosed=True, color=(0, 255, 0), thickness=2)
+                cv2.polylines(
+                    contour_image,
+                    [points],
+                    isClosed=True,
+                    color=(0, 255, 0),
+                    thickness=2,
+                )
 
                 # Add text labels at centroid
                 M = cv2.moments(points)
                 if M["m00"] != 0:
                     cX = int(M["m10"] / M["m00"])
                     cY = int(M["m01"] / M["m00"])
-                    cv2.putText(contour_image, cloth_names[i], (cX, cY),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                    cv2.putText(
+                        contour_image,
+                        cloth_names[i],
+                        (cX, cY),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (255, 0, 0),
+                        2,
+                    )
             except cv2.error as e:
                 print(f"OpenCV contour drawing error: {e}. Skipping this segment.")
                 continue
 
         plt.imshow(contour_image)
-        plt.title('Segmentation Contours')
-        plt.axis('off')
+        plt.title("Segmentation Contours")
+        plt.axis("off")
 
         # Panel 3: Combined mask
         plt.subplot(133)
@@ -348,17 +370,21 @@ class FashionSegmentationModel:
                 cv2.fillPoly(mask, [points], color=np.random.randint(0, 255))
                 combined_mask = cv2.bitwise_or(combined_mask, mask)
             except cv2.error as e:
-                print(f"OpenCV fillPoly error in visualization: {e}. Skipping this segment.")
+                print(
+                    f"OpenCV fillPoly error in visualization: {e}. Skipping this segment."
+                )
                 continue
 
-        plt.imshow(combined_mask, cmap='jet')
-        plt.title('Combined Mask')
-        plt.axis('off')
+        plt.imshow(combined_mask, cmap="jet")
+        plt.title("Combined Mask")
+        plt.axis("off")
 
         plt.tight_layout()
         plt.show()
 
-    def get_segment_images(self, img_path: str, target_size: int = 640) -> Tuple[List[np.ndarray], List[str]]:
+    def get_segment_images(
+        self, img_path: str, target_size: int = 640
+    ) -> Tuple[List[np.ndarray], List[str]]:
         """
         Generate standardized segment images.
 
@@ -388,7 +414,7 @@ class FashionSegmentationModel:
         """
         segments, cloth_names = self.segment_clothes(img_path)
         if len(segments) == 0:
-            return []
+            return ([], [])
         image = cv2.imread(img_path)
         h, w = image.shape[:2]
 
@@ -420,7 +446,11 @@ class FashionSegmentationModel:
                 continue
 
             # Check if points contain valid coordinate values
-            if np.any(points < 0) or np.any(points[:, 0, 0] >= w) or np.any(points[:, 0, 1] >= h):
+            if (
+                np.any(points < 0)
+                or np.any(points[:, 0, 0] >= w)
+                or np.any(points[:, 0, 1] >= h)
+            ):
                 # Clamp points to image boundaries
                 points[:, 0, 0] = np.clip(points[:, 0, 0], 0, w - 1)
                 points[:, 0, 1] = np.clip(points[:, 0, 1], 0, h - 1)
@@ -462,7 +492,9 @@ class FashionSegmentationModel:
             scale_factor = 0.8 * target_size / max(rgba.shape[0], rgba.shape[1])
             new_width = int(rgba.shape[1] * scale_factor)
             new_height = int(rgba.shape[0] * scale_factor)
-            resized = cv2.resize(rgba, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            resized = cv2.resize(
+                rgba, (new_width, new_height), interpolation=cv2.INTER_AREA
+            )
 
             # Create background canvas
             result_img = np.zeros((target_size, target_size, 4), dtype=np.uint8)
@@ -478,9 +510,16 @@ class FashionSegmentationModel:
             alpha_l = 1.0 - alpha_s
 
             for c in range(3):
-                result_img[y_offset:y_offset + new_height, x_offset:x_offset + new_width, c] = (
-                        alpha_s * resized[:, :, c] +
-                        alpha_l * result_img[y_offset:y_offset + new_height, x_offset:x_offset + new_width, c]
+                result_img[
+                    y_offset : y_offset + new_height, x_offset : x_offset + new_width, c
+                ] = (
+                    alpha_s * resized[:, :, c]
+                    + alpha_l
+                    * result_img[
+                        y_offset : y_offset + new_height,
+                        x_offset : x_offset + new_width,
+                        c,
+                    ]
                 )
 
             # Convert to RGB
@@ -490,10 +529,12 @@ class FashionSegmentationModel:
         return segment_images, cloth_names
 
 
-def split_outfits_to_clothes(embedder: DinoV2ImageEncoder,
-                             segmentation_model: FashionSegmentationModel,
-                             outfit_dir: str,
-                             output_dir: str):
+def split_outfits_to_clothes(
+    embedder: DinoV2ImageEncoder,
+    segmentation_model: FashionSegmentationModel,
+    outfit_dir: str,
+    output_dir: str,
+):
     completed_idxs = range(0, 11485)
     for outfit_number, outfit_name in enumerate(os.listdir(outfit_dir), 1):
 
@@ -527,7 +568,9 @@ def split_outfits_to_clothes(embedder: DinoV2ImageEncoder,
             for cloth_idx in range(1, len(segmented_clothes)):
                 max_similarity = np.max(similarity_matrix[cloth_idx, :cloth_idx])
                 if max_similarity < 0.95:
-                    cleaned_clothes.append((segmented_clothes[cloth_idx], cloth_names[cloth_idx]))
+                    cleaned_clothes.append(
+                        (segmented_clothes[cloth_idx], cloth_names[cloth_idx])
+                    )
 
             # save clothes in files
             for cloth_img, cloth_class in cleaned_clothes:

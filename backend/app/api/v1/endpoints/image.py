@@ -95,7 +95,9 @@ async def delete_image(
     # Delete from PostgreSQL
     deleted_image = await crud_image.delete_image(db, image_id, current_user.id)
     if not deleted_image:
-        raise HTTPException(status_code=404, detail="Failed to delete image from database")
+        raise HTTPException(
+            status_code=404, detail="Failed to delete image from database"
+        )
 
     # Note: Images are not typically stored in Qdrant, only outfit vectors are
     # If you have image vectors in Qdrant, add deletion logic here

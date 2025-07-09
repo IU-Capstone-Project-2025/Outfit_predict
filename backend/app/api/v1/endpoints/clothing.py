@@ -16,8 +16,7 @@ router = APIRouter(prefix="/clothing", tags=["clothing"])
 
 @router.post("/detect-clothes/")
 async def detect_clothes(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user)
+    file: UploadFile = File(...), current_user: User = Depends(get_current_user)
 ):
     """
     Endpoint to detect clothes in an uploaded image.

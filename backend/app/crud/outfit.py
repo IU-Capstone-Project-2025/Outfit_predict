@@ -6,7 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def create_outfit(db: AsyncSession, user_id: uuid.UUID, object_name: str) -> Outfit:
+async def create_outfit(
+    db: AsyncSession, user_id: uuid.UUID, object_name: str
+) -> Outfit:
     outfit = Outfit(object_name=object_name, user_id=user_id)
     db.add(outfit)
     await db.commit()
@@ -14,7 +16,9 @@ async def create_outfit(db: AsyncSession, user_id: uuid.UUID, object_name: str) 
     return outfit
 
 
-async def get_outfit(db: AsyncSession, outfit_id: UUID, user_id: uuid.UUID) -> Outfit | None:
+async def get_outfit(
+    db: AsyncSession, outfit_id: UUID, user_id: uuid.UUID
+) -> Outfit | None:
     res = await db.execute(
         select(Outfit).where(Outfit.id == outfit_id, Outfit.user_id == user_id)
     )
@@ -41,7 +45,9 @@ async def get_outfit_by_object_name(
 ) -> Outfit | None:
     """Get outfit by object name, ensuring user ownership."""
     res = await db.execute(
-        select(Outfit).where(Outfit.object_name == object_name, Outfit.user_id == user_id)
+        select(Outfit).where(
+            Outfit.object_name == object_name, Outfit.user_id == user_id
+        )
     )
     return res.scalar_one_or_none()
 
@@ -54,7 +60,7 @@ async def delete_outfit(
     outfit = await get_outfit(db, outfit_id, user_id)
     if not outfit:
         return None
-    
+
     # Delete from database
     await db.delete(outfit)
     await db.commit()
