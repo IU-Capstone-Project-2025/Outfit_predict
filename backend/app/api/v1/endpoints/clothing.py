@@ -6,7 +6,7 @@ from io import BytesIO
 
 import cv2
 from app.deps import get_current_user
-from app.ml.clothing_detector import get_clothes_from_img
+from app.ml.outfit_processing import get_clothes_from_img
 from app.models.user import User
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
