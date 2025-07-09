@@ -2,13 +2,14 @@
 
 Outfit Predict is a web platform for creating perfect outfits based on your wardrobe. It automatically searches outfits storage to assemble flawless looks from your wardrobe.
 
-[**Link to the deployed project**](http://178.215.238.69:3000/)
+[**Link to the deployed project**](https://outfitpredict.ru)
 
 ## 📋 Table of Contents
 
 - [🤵‍♂️ Problem & Audience](#️-problem--audience)
 - [💡 Proposed Workflow](#-proposed-workflow)
 - [🔪 Tech Stack](#-tech-stack)
+- [📥 Repository Setup](#-repository-setup)
 - [🛠️ Environment Setup](#️-environment-setup)
 - [🚀 Running the Application](#-running-the-application)
 - [👥 Team](#-team)
@@ -41,6 +42,51 @@ Outfit Predict is a web platform for creating perfect outfits based on your ward
 | **Storage** | MinIO (Object Storage), Qdrant (Vector Database), PostgreSQL (Relational Database) |
 | **Containerization** | Docker, Docker Compose |
 | **Image Processing** | Pillow, OpenCV |
+
+## 📥 Repository Setup
+
+This repository uses **Git LFS (Large File Storage)** for managing large machine learning model files (`.pt` files).
+
+### Prerequisites
+
+Make sure you have Git LFS installed:
+
+```bash
+# Install Git LFS (if not already installed)
+# On Ubuntu/Debian:
+sudo apt install git-lfs
+
+# On macOS:
+brew install git-lfs
+
+# On Windows, download from: https://git-lfs.github.io/
+```
+
+### Cloning the Repository
+
+**⚠️ Important**: Use Git LFS clone to properly download all model files:
+
+```bash
+# Clone with Git LFS support
+git lfs clone https://github.com/IU-Capstone-Project-2025/Outfit_predict.git
+
+# Alternative: Regular clone followed by LFS pull
+git clone https://github.com/IU-Capstone-Project-2025/Outfit_predict.git
+cd Outfit_predict
+git lfs pull
+```
+
+### Verify LFS Files
+
+After cloning, verify that model files are properly downloaded:
+
+```bash
+# Check LFS files status
+git lfs ls-files
+
+# Model files should be actual files, not pointer files
+ls -lh backend/app/ml/*.pt
+```
 
 ## 🛠️ Environment Setup
 
