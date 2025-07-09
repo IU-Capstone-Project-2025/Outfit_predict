@@ -178,13 +178,14 @@ export default function WardrobePage() {
               {images.map((image, index) => (
                 <div
                   key={image.id || index}
-                  className="group relative bg-gray-900 rounded-2xl overflow-hidden border border-gray-700 hover:border-gray-500 transition-all duration-200"
+                  className="group relative bg-gray-900 rounded-2xl overflow-hidden border border-gray-700 hover:border-gray-500 transition-all duration-200 h-72 flex flex-col"
                 >
-                  <div className="aspect-square">
-                    <img
-                      src={image.url || "/placeholder.svg"}
+                  <div className="flex-1 flex items-center justify-center bg-black aspect-square h-full">
+                    <ProtectedImage
+                      src={image.url}
                       alt={image.description || `Wardrobe item ${index + 1}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      token={token}
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
                     />
                   </div>
 
@@ -234,9 +235,10 @@ export default function WardrobePage() {
                   ×
                 </button>
               </div>
-              <img
-                src={selectedImage.url || "/placeholder.svg"}
+              <ProtectedImage
+                src={selectedImage.url}
                 alt={selectedImage.description || "Wardrobe item"}
+                token={token}
                 className="w-full max-h-96 object-contain rounded-2xl mb-4"
               />
               {selectedImage.description && <p className="text-gray-300 text-center">{selectedImage.description}</p>}
@@ -246,4 +248,35 @@ export default function WardrobePage() {
       </div>
     </div>
   )
+}
+
+function ProtectedImage({ src, alt, token, ...props }: { src: string, alt: string, token: string | null } & React.ImgHTMLAttributes<HTMLImageElement>) {
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!src || !token) return;
+
+    fetch(src, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch image");
+        return res.blob();
+      })
+      .then(blob => {
+        if (isMounted) setImgUrl(URL.createObjectURL(blob));
+      });
+
+    return () => {
+      isMounted = false;
+      if (imgUrl) URL.revokeObjectURL(imgUrl);
+    };
+  }, [src, token]);
+
+  if (!imgUrl) return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
+
+  return <img src={imgUrl} alt={alt} {...props} />;
 }
