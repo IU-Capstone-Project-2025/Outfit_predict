@@ -1,41 +1,90 @@
-import { Shirt } from "lucide-react"
+"use client"
+
+import { Shirt, ChevronDown } from "lucide-react"
 import Link from "next/link"
-import { useAuth } from "@/lib/auth-context"
-import { ChevronDown } from "lucide-react"
 import { useState } from "react"
+import { usePathname } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
 
 export function Header() {
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
+  const pathname = usePathname()
+
+  const isActive = (path: string) => pathname === path
+
   return (
-    <header className="bg-white backdrop-blur-sm border-b border-gray-200/50 sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-4">
+    <header className="bg-black/80 backdrop-blur-md border-b border-gray-800/50 sticky top-0 z-50">
+      <div className="container mx-auto px-6 py-5">
         <div className="flex items-center justify-between">
+          {/* Logo */}
           <Link
             href="/"
-            className="flex items-center group focus-visible:outline-none focus:outline-none rounded-md transition"
+            className="flex items-center rounded-lg transition-all duration-200 outline-none focus:outline-none"
           >
-            <Shirt className="w-6 h-6 text-purple-600 mr-2 group-hover:scale-110 transition-transform" />
-            <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent group-hover:underline">
+            <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center mr-3 transition-transform duration-200 outline-none focus:outline-none">
+              <Shirt className="w-5 h-5 text-black" />
+            </div>
+            <span className="text-2xl font-bold text-white transition-colors tracking-tight">
               OutfitPredict
             </span>
           </Link>
-          <nav className="flex items-center justify-end" style={{ minWidth: 220, height: 40 }}>
+
+          {/* Navigation */}
+          <nav className="hidden md:flex items-center space-x-2">
+            <Link
+              href="/"
+              className={`px-6 py-3 rounded-full text-sm font-semibold transition-all duration-200 ${
+                isActive("/") ? "bg-white text-black shadow-lg" : "text-gray-300 hover:text-white hover:bg-gray-800/50"
+              }`}
+            >
+              Generate
+            </Link>
+            <Link
+              href="/about"
+              className={`px-6 py-3 rounded-full text-sm font-semibold transition-all duration-200 ${
+                isActive("/about")
+                  ? "bg-white text-black shadow-lg"
+                  : "text-gray-300 hover:text-white hover:bg-gray-800/50"
+              }`}
+            >
+              About
+            </Link>
+            <Link
+              href="/profile"
+              className={`px-6 py-3 rounded-full text-sm font-semibold transition-all duration-200 ${
+                isActive("/profile")
+                  ? "bg-white text-black shadow-lg"
+                  : "text-gray-300 hover:text-white hover:bg-gray-800/50"
+              }`}
+            >
+              Profile
+            </Link>
+          </nav>
+
+          {/* Right Side */}
+          <div className="flex items-center space-x-4">
             {user ? (
-              <div className="relative w-full flex justify-end">
+              <div className="relative">
                 <button
-                  className="flex items-center space-x-2 px-4 py-2 rounded-md hover:bg-gray-100 focus:outline-none"
+                  className="flex items-center space-x-3 px-4 py-2 rounded-full hover:bg-gray-800/50 focus:outline-none transition-all duration-200"
                   onClick={() => setMenuOpen((v) => !v)}
-                  style={{ minWidth: 160 }}
                 >
-                  <span className="font-medium text-gray-700 truncate max-w-[100px]">{user.email}</span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+                  <span className="font-semibold text-white truncate max-w-[120px]">
+                    {user.email?.split("@")[0] || "User"}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-gray-300 transition-transform duration-200 ${menuOpen ? "rotate-180" : ""}`}
+                  />
                 </button>
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-xl shadow-lg z-10">
+                  <div className="absolute right-0 mt-2 w-48 bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-2xl shadow-xl z-10">
                     <button
-                      className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl"
-                      onClick={() => { logout(); setMenuOpen(false); }}
+                      className="w-full text-left px-6 py-4 text-red-400 hover:bg-red-500/10 rounded-2xl transition-colors font-medium"
+                      onClick={() => {
+                        logout()
+                        setMenuOpen(false)
+                      }}
                     >
                       Sign Out
                     </button>
@@ -43,9 +92,18 @@ export function Header() {
                 )}
               </div>
             ) : (
-              <div style={{ minWidth: 160, height: 40 }} aria-hidden="true" />
+              <div className="flex items-center space-x-3">
+                <Link href="/login" className="text-gray-300 hover:text-white transition-colors font-medium">
+                  Login
+                </Link>
+                <Link href="/signup">
+                  <button className="bg-white text-black hover:bg-gray-100 rounded-full px-6 py-2 text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-xl">
+                    Sign up
+                  </button>
+                </Link>
+              </div>
             )}
-          </nav>
+          </div>
         </div>
       </div>
     </header>
