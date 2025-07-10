@@ -39,17 +39,17 @@ export default function AboutPage() {
 
   const [sliderRef, instanceRef] = useKeenSlider({
     loop: true,
-    slides: { perView: 5, spacing: 32 },
+    slides: { perView: 1 }, // default for small screens
     breakpoints: {
-      "(max-width: 900px)": {
-        slides: { perView: 1, spacing: 16 },
+      "(min-width: 600px)": {
+        slides: { perView: 2 },
       },
-      "(max-width: 1200px)": {
-        slides: { perView: 2, spacing: 24 },
+      "(min-width: 900px)": {
+        slides: { perView: 3 },
       },
-      "(max-width: 1536px)": {
-        slides: { perView: 3, spacing: 28 },
-      },
+      "(min-width: 1200px)": {
+        slides: { perView: 4 }
+      }
     },
   })
 
