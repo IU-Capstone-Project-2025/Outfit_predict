@@ -226,7 +226,7 @@ export default function WardrobePage() {
                         type="button"
                         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-gray-900 rounded-full p-1 transition-opacity z-10 border border-gray-700 shadow"
                         onClick={e => { e.stopPropagation(); setMenuOpenIndex(index === menuOpenIndex ? null : index); }}
-                        ref={el => menuButtonRefs.current[index] = el}
+                        ref={el => { menuButtonRefs.current[index] = el; }}
                       >
                         <MoreVertical className="w-5 h-5 text-white" />
                       </button>
@@ -234,7 +234,7 @@ export default function WardrobePage() {
                       {menuOpenIndex === index && (
                         <div
                           className="absolute top-10 right-2 bg-gray-900 border border-gray-700 rounded-xl shadow-lg z-20 min-w-[120px]"
-                          ref={el => menuRefs.current[index] = el}
+                          ref={el => { menuRefs.current[index] = el; }}
                         >
                           <button
                             className="flex items-center gap-2 px-4 py-2 text-red-500 hover:text-red-600 hover:bg-gray-800 w-full text-left rounded-xl transition-colors"
@@ -311,5 +311,5 @@ function ProtectedImage({ src, alt, token, ...props }: { src: string, alt: strin
 
   if (!imgUrl) return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
 
-  return <img src={imgUrl} alt={alt} {...props} />;
+  return <img src={imgUrl} alt={alt} loading="lazy" {...props} />;
 }
