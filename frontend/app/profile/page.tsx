@@ -110,7 +110,7 @@ export default function WardrobePage() {
             </div>
             <div className="text-left">
               <h1 className="text-4xl font-bold mb-2">
-                Welcome back, <span className="text-gray-400">{user?.email?.split("@")[0] || "User"}</span>
+                Welcome back, {user?.email?.split("@")[0] || "User"}
               </h1>
               <p className="text-gray-400 text-lg">{user?.email}</p>
             </div>
@@ -141,20 +141,12 @@ export default function WardrobePage() {
               Upload New Items
             </Button>
           </Link>
-          <Button
-            variant="outline"
-            className="border-gray-600 text-white hover:bg-gray-800 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2 bg-transparent"
-          >
-            <Settings className="w-5 h-5" />
-            Settings
-          </Button>
         </div>
 
         {/* Wardrobe Section */}
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold flex items-center gap-3">
-              <Shirt className="w-8 h-8" />
               My Profile
             </h2>
             <div className="text-gray-400">{images.length} items</div>

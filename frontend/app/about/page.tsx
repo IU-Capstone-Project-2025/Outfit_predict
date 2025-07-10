@@ -87,15 +87,15 @@ export default function AboutPage() {
         <div className="container mx-auto px-6 pt-16 pb-8 text-center">
           {/* Collection Badge */}
           <div className="inline-flex items-center bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-full px-6 py-2 mb-12">
-            <span className="text-sm text-gray-300 font-medium">AI-Powered Style Assistant 2024</span>
+            <span className="text-sm text-gray-300 font-medium">AI-Powered Style Generator</span>
           </div>
 
           {/* Main Headline */}
           <div className="max-w-5xl mx-auto mb-8">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] mb-8 tracking-tight">
               Where style speaks, trends resonate,
-              <br />
-              <span className="text-gray-400">fashion flourishes</span>
+              <br/>
+              fashion flourishes
             </h1>
             <p className="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto leading-relaxed font-light">
               Unveiling a fashion destination where trends blend seamlessly with your
@@ -176,7 +176,6 @@ export default function AboutPage() {
         <div className="container mx-auto px-6 py-16">
           <div className="text-center max-w-4xl mx-auto mb-16">
             <div className="flex items-center justify-center mb-6">
-              <Shirt className="w-10 h-10 text-white mr-3" />
               <h2 className="text-4xl font-bold">About OutfitPredict</h2>
             </div>
             <p className="text-xl text-gray-400 leading-relaxed mb-8">

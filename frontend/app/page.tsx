@@ -250,8 +250,8 @@ export default function OutfitGeneratorMain() {
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 tracking-tight">
             Generate Your Perfect
-            <br />
-            <span className="text-gray-400">Outfit Combinations</span>
+            <br/>
+            Outfit Combinations
           </h1>
 
           <p className="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed font-light mb-8">
