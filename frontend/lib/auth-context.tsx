@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { getApiBaseUrl } from "./utils"
+import { getApiBaseUrl, apiUrl } from "./utils"
 
 interface User {
   email: string
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const form = new URLSearchParams()
     form.append("username", email)
     form.append("password", password)
-    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
+    const res = await fetch(apiUrl('v1/auth/login'), {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signup = async (email: string, password: string) => {
-    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/signup`, {
+    const res = await fetch(apiUrl('v1/auth/signup'), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
