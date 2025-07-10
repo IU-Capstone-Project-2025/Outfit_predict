@@ -1,30 +1,47 @@
-from functools import lru_cache
 import os
+from functools import lru_cache
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     # PostgreSQL
-    database_url: str = Field(..., alias="DATABASE_URL")
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: str
+    POSTGRES_HOST: str
 
     # Qdrant
-    qdrant_url: str = Field(..., alias="Qdrant_URL")
-    qdrant_api_key: str = Field(..., alias="Qdrant_API_KEY")
+    QDRANT_URL: str
+    QDRANT_API_KEY: str
 
     # MinIO
-    minio_endpoint: str = Field(..., env="MINIO_ENDPOINT")  # host:port
-    minio_access_key: str = Field(..., env="MINIO_ACCESS_KEY")
-    minio_secret_key: str = Field(..., env="MINIO_SECRET_KEY")
-    minio_bucket: str = Field("images", env="MINIO_BUCKET")
-    minio_secure: bool = Field(False, env="MINIO_SECURE")
+    MINIO_ENDPOINT: str  # host:port
+    MINIO_ACCESS_KEY: str
+    MINIO_SECRET_KEY: str
+    MINIO_BUCKET: str = "images"
+    MINIO_SECURE: bool = False
+
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # Storage
     STORAGE_DIR: str = Field(default=os.path.join(os.getcwd(), "storage"))
-
     api_prefix: str = "/api/v1"
-
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def database_url_async(self):
+        db_url = (
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:"
+            f"{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:"
+            f"{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+        print(db_url)
+        return db_url
 
 
 @lru_cache

@@ -1,10 +1,11 @@
-from PIL import Image
-import torch
+from typing import List, Tuple, Union
+
 import clip
 import numpy as np
-from typing import List, Tuple, Set, Union
-from collections import Counter
+import torch
+from app.schemas.outfit import MatchedItem, RecommendedOutfit
 from app.storage.qdrant_client import QdrantService
+from PIL import Image
 
 
 class ImageSearchEngine:
@@ -26,7 +27,9 @@ class ImageSearchEngine:
         # Set model to evaluation mode
         self.model.eval()
 
-    def get_image_embeddings(self, images: Union[Image.Image, List[Image.Image]], batch_size: int = 32) -> np.ndarray:
+    def get_image_embeddings(
+        self, images: Union[Image.Image, List[Image.Image]], batch_size: int = 32
+    ) -> np.ndarray:
         """
         Create embeddings for images using CLIP model
 
@@ -48,7 +51,7 @@ class ImageSearchEngine:
 
         # Process images in batches
         for i in range(0, len(images), batch_size):
-            batch_images = images[i:i + batch_size]
+            batch_images = images[i : i + batch_size]
 
             # Preprocess all images in the batch
             image_tensors = []
@@ -73,11 +76,11 @@ class ImageSearchEngine:
             return np.array([])
 
     async def find_similar_images(
-            self,
-            image: Image.Image,
-            qdrant: QdrantService,
-            limit: int = 10,
-            score_threshold: float = 0.7
+        self,
+        image: Image.Image,
+        qdrant: QdrantService,
+        limit: int = 10,
+        score_threshold: float = 0.7,
     ) -> List[Tuple[str, float]]:
         """
         Find similar images using CLIP embeddings and Qdrant vector search.
@@ -96,9 +99,7 @@ class ImageSearchEngine:
 
         # Search for similar vectors in Qdrant
         similar_points = qdrant.search_vectors(
-            query_vector=query_vector,
-            limit=limit,
-            score_threshold=score_threshold
+            query_vector=query_vector, limit=limit, score_threshold=score_threshold
         )
 
         # Extract image IDs and scores from results
@@ -107,11 +108,7 @@ class ImageSearchEngine:
         return results
 
     async def add_image_to_index(
-            self,
-            image: Image.Image,
-            image_id: str,
-            outfit_id: str,
-            qdrant: QdrantService
+        self, image: Image.Image, image_id: str, outfit_id: str, qdrant: QdrantService
     ) -> None:
         """
         Add a single image to the Qdrant index
@@ -126,75 +123,118 @@ class ImageSearchEngine:
         vector = self.get_image_embeddings(image)[0]
 
         # Create point with vector and metadata
-        point = {
-            "id": image_id,
-            "vector": vector,
-            "payload": {
-                "outfit_id": outfit_id
-            }
-        }
+        point = {"id": image_id, "vector": vector, "payload": {"outfit_id": outfit_id}}
 
         # Upsert to Qdrant
         qdrant.upsert_vectors([point])
 
     async def find_similar_outfit(
-            self,
-            images: List[Image.Image],
-            qdrant: QdrantService,
-            score_threshold: float = 0.7,
-            limit_outfits: int = 5,
-            min_common_images: int = 2
-    ) -> List[Tuple[str, float]]:
+        self,
+        images: List[Image.Image],
+        wardrobe_object_names: List[str],
+        qdrant: QdrantService,
+        score_threshold: float = 0.7,
+        limit_outfits: int = 5,
+    ) -> List[RecommendedOutfit]:
         """
-        Find outfits that have similar images to all query images
+        Finds the best-matching outfits from the database for a given set of wardrobe items.
+        This method uses a two-stage process:
+        1. Candidate Generation: Quickly identifies a list of potential outfits by finding outfits
+           that contain at least one item similar to any of the user's wardrobe items.
+        2. Re-ranking: For each candidate outfit, it calculates a "completeness score" by finding
+           the best possible match from the wardrobe for *each* item in the outfit. The final
+           score is the average similarity of these best matches. This ensures that the
+           recommended outfits are those that can be most completely assembled from the user's wardrobe.
 
         Args:
-            images: List of query images (1-8 images)
-            qdrant: Qdrant client
-            score_threshold: Minimum similarity score threshold (0.0 to 1.0)
-            limit_outfits: Maximum number of returned outfits
-            min_common_images: Minimum number of query images that should have matches
+            images: A list of PIL Images representing the user's wardrobe.
+            wardrobe_object_names: A list of strings representing the names of the wardrobe items.
+            qdrant: An instance of the QdrantService for vector database operations.
+            score_threshold: The minimum similarity score for an item to be considered a match during
+                             the candidate generation phase.
+            limit_outfits: The maximum number of recommended outfits to return.
 
         Returns:
-            List of (outfit_id, average_similarity_score) tuples, sorted by score
+            A list of `RecommendedOutfit` objects, sorted by their completeness
+            score in descending order.
+            Each object includes the outfit ID, its score,
+            and a list of `MatchedItem`s detailing which
+            wardrobe item matches which outfit item.
         """
-        if not 1 <= len(images) <= 8:
-            raise ValueError("Number of images must be between 1 and 8")
-
-        # Get similar images for each query image
-        all_similar_images = []
-        for image in images:
-            similar = await self.find_similar_images(
-                image=image,
-                qdrant=qdrant,
-                score_threshold=score_threshold
+        if not images or len(images) != len(wardrobe_object_names):
+            raise ValueError(
+                "Mismatched number of images and object names, or lists are empty."
             )
-            all_similar_images.append(similar)
 
-        # Count outfit_ids and collect scores
-        outfit_scores = Counter()
-        outfit_counts = Counter()
+        # STAGE 1: CANDIDATE GENERATION
+        # Get embeddings for all wardrobe images in a single batch
+        wardrobe_embeddings = self.get_image_embeddings(images)
+        if wardrobe_embeddings.size == 0:
+            return []
 
-        for similar_images in all_similar_images:
-            # Get unique outfit_ids for this query image's results
-            seen_outfits = set()
-            for image_id, score in similar_images:
-                # Get outfit_id from Qdrant
-                point = qdrant.get_point(image_id)
-                outfit_id = point.payload["outfit_id"]
+        # Find similar items for each wardrobe image and collect unique candidate outfit IDs
+        candidate_outfit_ids = set()
+        for i in range(wardrobe_embeddings.shape[0]):
+            query_vector = wardrobe_embeddings[i].tolist()
+            similar_points = qdrant.search_vectors(
+                query_vector=query_vector,
+                limit=50,  # Get more candidates per item
+                score_threshold=score_threshold,
+            )
+            for point in similar_points:
+                if "outfit_id" in point.payload:
+                    candidate_outfit_ids.add(point.payload["outfit_id"])
 
-                # Only count each outfit once per query image
-                if outfit_id not in seen_outfits:
-                    outfit_scores[outfit_id] += score
-                    outfit_counts[outfit_id] += 1
-                    seen_outfits.add(outfit_id)
+        if not candidate_outfit_ids:
+            return []
 
-        # Calculate average scores and filter by minimum common images
-        results = []
-        for outfit_id, count in outfit_counts.items():
-            if count >= min_common_images:
-                avg_score = outfit_scores[outfit_id] / count
-                results.append((outfit_id, avg_score))
+        # STAGE 2: RE-RANKING
+        ranked_outfits = []
+        for outfit_id in candidate_outfit_ids:
+            # Get all item records for the candidate outfit
+            outfit_item_records = qdrant.get_outfit_vectors(outfit_id)
+            if not outfit_item_records:
+                continue
 
-        # Sort by average score in descending order
-        return sorted(results, key=lambda x: x[1], reverse=True)[:limit_outfits]
+            # Extract embeddings and IDs
+            outfit_item_embeddings = np.array(
+                [record.vector for record in outfit_item_records]
+            )
+            outfit_item_ids = [record.id for record in outfit_item_records]
+
+            # Calculate similarity matrix between all wardrobe items and all outfit items at once
+            # Shape: (num_wardrobe_items, num_outfit_items)
+            similarity_matrix = np.dot(wardrobe_embeddings, outfit_item_embeddings.T)
+
+            # For each outfit item, find the best matching wardrobe item
+            best_matches_indices = np.argmax(similarity_matrix, axis=0)
+            best_matches_scores = np.max(similarity_matrix, axis=0)
+
+            # Create match details and calculate completeness score
+            matches = []
+            for i, outfit_item_id in enumerate(outfit_item_ids):
+                wardrobe_idx = int(best_matches_indices[i])
+                matches.append(
+                    MatchedItem(
+                        wardrobe_image_index=wardrobe_idx,
+                        wardrobe_image_object_name=wardrobe_object_names[wardrobe_idx],
+                        outfit_item_id=str(outfit_item_id),
+                        score=float(best_matches_scores[i]),
+                    )
+                )
+
+            # Score is the average of the best-match scores for each outfit item
+            completeness_score = np.mean(best_matches_scores)
+
+            ranked_outfits.append(
+                RecommendedOutfit(
+                    outfit_id=outfit_id,
+                    completeness_score=completeness_score,
+                    matches=matches,
+                )
+            )
+
+        # Sort outfits by the final completeness score
+        ranked_outfits.sort(key=lambda x: x.completeness_score, reverse=True)
+
+        return ranked_outfits[:limit_outfits]

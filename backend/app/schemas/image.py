@@ -1,21 +1,23 @@
-from typing import Optional
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel
 
 
 class ImageBase(BaseModel):
-    description: Optional[str] = None
+    description: str | None
 
 
 class ImageCreate(ImageBase):
-    pass  # description + file provided via form data
+    object_name: str
 
 
 class ImageRead(ImageBase):
     id: UUID
     object_name: str
+    created_at: datetime
+    user_id: UUID
     url: str
 
     class Config:
-        from_attributes = True  # SQLA → Pydantic
+        from_attributes = True

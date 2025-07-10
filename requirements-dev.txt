@@ -1,0 +1,3 @@
+-r backend/requirements.txt
+commitizen
+pre-commit
