@@ -28,9 +28,12 @@ export default function WardrobePage() {
 
   // Fetch wardrobe images
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/login")
-      return
+    if (loading) return;
+    if (!user) {
+      // Do not auto-redirect; just don't fetch images
+      setWardrobeLoading(false);
+      setImages([]);
+      return;
     }
     const fetchImages = async () => {
       setWardrobeLoading(true)
@@ -52,10 +55,14 @@ export default function WardrobePage() {
       }
     }
     fetchImages()
-  }, [user, token, loading, router])
+  }, [user, token, loading])
 
   // Delete image
   const deleteImage = useCallback(async (imageId: string) => {
+    if (!user) {
+      alert('Please log in or sign up to use this feature.');
+      return;
+    }
     try {
       const res = await fetch(apiUrl(`v1/images/${imageId}`), {
         method: "DELETE",
@@ -69,7 +76,7 @@ export default function WardrobePage() {
     } catch (err) {
       // Optionally show error
     }
-  }, [token])
+  }, [token, user])
 
   if (loading) {
     return (
@@ -98,118 +105,124 @@ export default function WardrobePage() {
       <Header />
 
       <div className="relative z-10 container mx-auto px-4 py-12">
-        {/* Profile Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-full px-6 py-2 mb-8">
-            <span className="text-sm text-gray-300">Your Style Profile</span>
-          </div>
-
-          <div className="flex items-center justify-center mb-6">
-            <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center mr-6">
-              <User className="w-10 h-10 text-gray-300" />
-            </div>
-            <div className="text-left">
-              <h1 className="text-4xl font-bold mb-2">
-                Welcome back, {user?.email?.split("@")[0] || "User"}
-              </h1>
-              <p className="text-gray-400 text-lg">{user?.email}</p>
+        {(!user) ? (
+          <div className="text-center text-xl text-gray-300 py-24">
+            You need to log in to display your profile.
+            <div className="mt-8 flex justify-center gap-4">
+              <a href="/login" className="text-gray-300 hover:text-white transition-colors font-medium px-8 py-3 rounded-full">Login</a>
+              <a href="/signup" className="bg-white text-black hover:bg-gray-100 rounded-full px-8 py-3 text-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-xl">Sign Up</a>
             </div>
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Profile Header */}
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-full px-6 py-2 mb-8">
+                <span className="text-sm text-gray-300">Your Style Profile</span>
+              </div>
 
-        {/* Stats Section */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
-          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
-            <div className="text-3xl font-bold text-white mb-2">{images.length}</div>
-            <div className="text-gray-400">Wardrobe Items</div>
-          </div>
-          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
-            <div className="text-3xl font-bold text-white mb-2">42</div>
-            <div className="text-gray-400">Outfits Generated</div>
-          </div>
-          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
-            <div className="text-3xl font-bold text-white mb-2">15</div>
-            <div className="text-gray-400">Days Active</div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="flex justify-center gap-4 mb-12">
-          <Link href="/">
-            <Button className="bg-white text-black hover:bg-gray-200 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
-              <Camera className="w-5 h-5" />
-              Upload New Items
-            </Button>
-          </Link>
-        </div>
-
-        {/* Wardrobe Section */}
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold flex items-center gap-3">
-              My Profile
-            </h2>
-            <div className="text-gray-400">{images.length} items</div>
-          </div>
-
-          {wardrobeLoading ? (
-            <div className="text-center py-12">
-              <div className="text-xl text-gray-400">Loading your profile...</div>
+              <div className="flex items-center justify-center mb-6">
+                <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center mr-6">
+                  <User className="w-10 h-10 text-gray-300" />
+                </div>
+                <div className="text-left">
+                  <h1 className="text-4xl font-bold mb-2">
+                    Welcome back, {user?.email?.split("@")[0] || "User"}
+                  </h1>
+                  <p className="text-gray-400 text-lg">{user?.email}</p>
+                </div>
+              </div>
             </div>
-          ) : images.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-xl text-gray-400 mb-4">Your profile is empty</div>
+
+            {/* Stats Section */}
+            <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
+              <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
+                <div className="text-3xl font-bold text-white mb-2">{images.length}</div>
+                <div className="text-gray-400">Wardrobe Items</div>
+              </div>
+              <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
+                <div className="text-3xl font-bold text-white mb-2">42</div>
+                <div className="text-gray-400">Outfits Generated</div>
+              </div>
+              <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
+                <div className="text-3xl font-bold text-white mb-2">15</div>
+                <div className="text-gray-400">Days Active</div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex justify-center gap-4 mb-12">
               <Link href="/">
-                <Button className="bg-white text-black hover:bg-gray-200 rounded-full px-8 py-3 font-semibold">
-                  Add Your First Items
+                <Button className="bg-white text-black hover:bg-gray-200 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
+                  <Camera className="w-5 h-5" />
+                  Upload New Items
                 </Button>
               </Link>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {images.map((image, index) => (
-                <div
-                  key={image.id || index}
-                  className="group relative bg-gray-800/30 rounded-3xl overflow-hidden border border-gray-700/50 hover:border-gray-500 transition-all duration-200 h-72 flex flex-col"
-                >
-                  <div className="flex-1 flex items-center justify-center bg-black aspect-square h-full">
-                    <ProtectedImage
-                      src={image.url}
-                      alt={image.description || `Wardrobe item ${index + 1}`}
-                      token={token}
-                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
-                    />
-                  </div>
 
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setSelectedImage(image)}
-                        className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => deleteImage(image.id)}
-                        className="w-10 h-10 bg-red-500/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-red-500/30 transition-colors"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
+            {/* Wardrobe Section */}
+            <div className="max-w-6xl mx-auto">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-3xl font-bold flex items-center gap-3">
+                  My Profile
+                </h2>
+                <div className="text-gray-400">{images.length} items</div>
+              </div>
 
-                  {/* Description */}
-                  {image.description && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                      <p className="text-white text-sm truncate">{image.description}</p>
-                    </div>
-                  )}
+              {wardrobeLoading ? (
+                <div className="text-center py-12">
+                  <div className="text-xl text-gray-400">Loading your profile...</div>
                 </div>
-              ))}
+              ) : images.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-xl text-gray-400 mb-4">Your profile is empty</div>
+                  <Link href="/">
+                    <Button className="bg-white text-black hover:bg-gray-200 rounded-full px-8 py-3 font-semibold">
+                      Add Your First Items
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                  {images.map((image, index) => (
+                    <div
+                      key={image.id || index}
+                      className="group relative bg-gray-800/30 rounded-3xl overflow-hidden border border-gray-700/50 hover:border-gray-500 transition-all duration-200 h-72 flex flex-col"
+                    >
+                      <div className="flex-1 flex items-center justify-center bg-black aspect-square h-full">
+                        <ProtectedImage
+                          src={image.url}
+                          alt={image.description || `Wardrobe item ${index + 1}`}
+                          token={token}
+                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                        />
+                      </div>
+
+                      {/* Overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSelectedImage(image)}
+                            className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => deleteImage(image.id)}
+                            className="w-10 h-10 bg-red-500/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-red-500/30 transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
+      </div>
 
         {/* Image Preview Modal */}
         {selectedImage && (
@@ -237,7 +250,6 @@ export default function WardrobePage() {
             </div>
           </div>
         )}
-      </div>
     </div>
   )
 }

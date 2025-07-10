@@ -28,9 +28,11 @@ export default function OutfitGeneratorMain() {
 
   // Fetch wardrobe images on mount
   React.useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/login")
-      return
+    if (loading) return;
+    if (!user) {
+      setWardrobeLoading(false);
+      setWardrobeImages([]);
+      return;
     }
     const fetchImages = async () => {
       setWardrobeLoading(true)
@@ -69,6 +71,9 @@ export default function OutfitGeneratorMain() {
   }, [])
 
   const uploadImage = useCallback(async (file: File) => {
+    if (!user) {
+      return;
+    }
     const formData = new FormData()
     formData.append("file", file)
     try {
@@ -89,7 +94,7 @@ export default function OutfitGeneratorMain() {
     } catch (error) {
       showUploadMessage(`Error uploading "${file.name}".`)
     }
-  }, [showUploadMessage, token])
+  }, [showUploadMessage, token, user])
 
   // Concurrency-limited upload queue
   const MAX_CONCURRENT_UPLOADS = 10;
@@ -144,6 +149,9 @@ export default function OutfitGeneratorMain() {
   }, [])
 
   const handleGenerateOutfits = useCallback(async () => {
+    if (!user) {
+      return;
+    }
     let imagesToSend: File[] = files
     // If no files uploaded, use wardrobe images
     if (imagesToSend.length === 0 && wardrobeImages.length > 0) {
@@ -198,19 +206,17 @@ export default function OutfitGeneratorMain() {
           return {
             ...match,
             wardrobe_image_url: wardrobeImage?.url,
-            wardrobe_image_description: wardrobeImage?.description,
-            wardrobe_image_object_name: wardrobeImage?.object_name,
           }
-        })
+        }),
       }))
       setRecommendations(recsWithUrls)
       setShowRecommendations(true)
-      setLoadingRecommendations(false)
-    } catch (err: any) {
-      setRecommendationError(err.message || "Unknown error")
+    } catch (err) {
+      setRecommendationError("Failed to generate outfits. Please try again.")
+    } finally {
       setLoadingRecommendations(false)
     }
-  }, [files, wardrobeImages, token, showUploadMessage])
+  }, [files, wardrobeImages, showUploadMessage, token, user])
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
@@ -241,209 +247,223 @@ export default function OutfitGeneratorMain() {
 
       <Header />
 
-      <div className="relative z-10 container mx-auto px-6 py-16">
-        {/* Page Header */}
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-full px-6 py-2 mb-8">
-            <span className="text-sm text-gray-300 font-medium">AI-Powered Style Generator</span>
+      <div className="relative z-10 container mx-auto px-4 py-12">
+        {!user ? (
+          <div className="text-center text-xl text-gray-300 py-24">
+            You need to log in to upload images and generate outfits.
+            <div className="mt-8 flex justify-center gap-4">
+              <a href="/login" className="text-gray-300 hover:text-white transition-colors font-medium px-8 py-3 rounded-full">Login</a>
+              <a href="/signup" className="bg-white text-black hover:bg-gray-100 rounded-full px-8 py-3 text-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-xl">Sign Up</a>
+            </div>
           </div>
-
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 tracking-tight">
-            Generate Your Perfect
-            <br/>
-            Outfit Combinations
-          </h1>
-
-          <p className="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed font-light mb-8">
-            Upload photos of your clothing items and let our AI create personalized outfit recommendations that match
-            your style
-          </p>
-        </div>
-
-        {/* Upload Section */}
-        <div className="max-w-4xl mx-auto mb-16">
-          <div className="relative mb-12">
-            <div
-              className={`border-2 border-dashed rounded-3xl p-20 text-center transition-all duration-300 ${
-                isDragOver
-                  ? "border-white/50 bg-gray-800/30 scale-[1.02]"
-                  : "border-gray-600/50 bg-gray-900/20 backdrop-blur-sm hover:border-gray-500/50 hover:bg-gray-800/25"
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              <div className="w-24 h-24 bg-gray-800/50 rounded-3xl flex items-center justify-center mx-auto mb-8">
-                <Upload className="w-12 h-12 text-gray-300" />
+        ) : (
+          <>
+            {/* Page Header */}
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-full px-6 py-2 mb-8">
+                <span className="text-sm text-gray-300 font-medium">AI-Powered Style Generator</span>
               </div>
 
-              <h2 className="text-3xl font-semibold text-white mb-6">Upload Your Clothing Images</h2>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 tracking-tight">
+                Generate Your Perfect
+                <br/>
+                Outfit Combinations
+              </h1>
 
-              <p className="text-gray-400 mb-10 text-xl leading-relaxed max-w-2xl mx-auto">
-                Drag and drop your photos here, or click to browse your files
-                <br />
-                <span className="text-base text-gray-500 mt-2 block">
-                  Supports JPG and PNG formats • Multiple files allowed
-                </span>
+              <p className="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed font-light mb-8">
+                Upload photos of your clothing items and let our AI create personalized outfit recommendations that match
+                your style
               </p>
+            </div>
 
-              <input
-                type="file"
-                accept="image/jpeg,image/png"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-                id="file-upload"
-              />
-
-              <label htmlFor="file-upload">
-                <Button
-                  variant="outline"
-                  className="cursor-pointer rounded-full border-2 border-gray-500 bg-transparent text-white hover:bg-white hover:text-black transition-all duration-300 px-12 py-5 text-lg font-semibold shadow-lg hover:shadow-xl"
-                  asChild
+            {/* Upload Section */}
+            <div className="max-w-4xl mx-auto mb-16">
+              <div className="relative mb-12">
+                <div
+                  className={`border-2 border-dashed rounded-3xl p-20 text-center transition-all duration-300 ${
+                    isDragOver
+                      ? "border-white/50 bg-gray-800/30 scale-[1.02]"
+                      : "border-gray-600/50 bg-gray-900/20 backdrop-blur-sm hover:border-gray-500/50 hover:bg-gray-800/25"
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
                 >
-                  <span>Choose Files</span>
-                </Button>
-              </label>
-            </div>
+                  <div className="w-24 h-24 bg-gray-800/50 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                    <Upload className="w-12 h-12 text-gray-300" />
+                  </div>
 
-            {/* Upload Message */}
-            {uploadMessage && (
-              <div
-                className={`absolute -bottom-20 left-1/2 transform -translate-x-1/2 bg-green-600/90 backdrop-blur-sm text-white px-8 py-4 rounded-2xl shadow-lg transition-opacity duration-500 ${
-                  isMessageFadingOut ? "opacity-0" : "opacity-100"
-                } whitespace-nowrap text-lg font-medium`}
-              >
-                {uploadMessage}
-              </div>
-            )}
-          </div>
+                  <h2 className="text-3xl font-semibold text-white mb-6">Upload Your Clothing Images</h2>
 
-          {/* Generate Button */}
-          <div className="text-center">
-            <Button
-              className="bg-white text-black hover:bg-gray-100 rounded-full px-20 py-6 text-xl font-bold transition-all duration-300 group flex items-center gap-4 shadow-xl hover:shadow-2xl mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleGenerateOutfits}
-              disabled={loadingRecommendations}
-            >
-              <Sparkles className="w-7 h-7" />
-              {loadingRecommendations ? "Generating AI Outfits..." : "Generate AI Outfits"}
-            </Button>
+                  <p className="text-gray-400 mb-10 text-xl leading-relaxed max-w-2xl mx-auto">
+                    Drag and drop your photos here, or click to browse your files
+                    <br />
+                    <span className="text-base text-gray-500 mt-2 block">
+                      Supports JPG and PNG formats • Multiple files allowed
+                    </span>
+                  </p>
 
-            {!loadingRecommendations && (
-              <p className="text-gray-500 mt-4 text-sm">
-                Our AI will analyze your clothing items and create perfect outfit combinations
-              </p>
-            )}
-          </div>
-        </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="file-upload"
+                    disabled={!user}
+                  />
 
-        {/* Loading State */}
-        {loadingRecommendations && (
-          <div className="text-center py-16">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-800/50 rounded-full mb-6">
-              <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            </div>
-            <h3 className="text-2xl font-semibold mb-2">Creating Your Outfits</h3>
-            <p className="text-gray-400">
-              Our AI is analyzing your wardrobe and generating personalized recommendations...
-            </p>
-          </div>
-        )}
-
-        {/* Error State */}
-        {recommendationError && (
-          <div className="text-center py-12">
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 max-w-md mx-auto">
-              <h3 className="text-xl font-semibold text-red-400 mb-2">Generation Failed</h3>
-              <p className="text-red-300">{recommendationError}</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Recommendations Modal */}
-      {showRecommendations && recommendations && (
-        <div
-          className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setShowRecommendations(false)}
-        >
-          <div
-            className="bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-10 max-w-6xl w-full max-h-[90vh] overflow-auto shadow-2xl relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="absolute top-8 right-8 text-gray-400 hover:text-white text-3xl font-light transition-colors w-12 h-12 flex items-center justify-center rounded-full hover:bg-gray-800/50"
-              onClick={() => setShowRecommendations(false)}
-            >
-              ×
-            </button>
-
-            <div className="text-center mb-12">
-              <h2 className="text-4xl font-bold mb-4 text-white">Your AI-Generated Outfits</h2>
-              <p className="text-gray-400 text-lg">Here are personalized outfit combinations based on your wardrobe</p>
-            </div>
-
-            {recommendations.length === 0 ? (
-              <div className="text-center text-gray-400 text-xl py-16">
-                <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-gray-500" />
+                  <label htmlFor="file-upload">
+                    <Button
+                      variant="outline"
+                      className="cursor-pointer rounded-full border-2 border-gray-500 bg-transparent text-white hover:bg-white hover:text-black transition-all duration-300 px-12 py-5 text-lg font-semibold shadow-lg hover:shadow-xl"
+                      asChild
+                      disabled={!user}
+                    >
+                      <span>Choose Files</span>
+                    </Button>
+                  </label>
                 </div>
-                No outfit recommendations found. Try uploading more clothing items.
-              </div>
-            ) : (
-              <div className="space-y-12">
-                {recommendations.map((rec, idx) => (
-                  <div key={idx} className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/30">
-                    <div className="flex flex-col lg:flex-row gap-10 items-center">
-                      <div className="relative">
-                        <img
-                          src={rec.outfit.url || "/placeholder.svg"}
-                          alt="Generated Outfit"
-                          className="w-72 h-72 object-cover rounded-3xl border border-gray-600/50 shadow-lg"
-                        />
-                        <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
-                          <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
-                        </div>
-                      </div>
 
-                      <div className="flex-1">
-                        <h3 className="text-2xl font-bold text-white mb-6">Matched Wardrobe Items</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                          {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
-                            rec.matchesWithUrls.map((match: any, i: number) => (
-                              <div key={i} className="text-center">
-                                {match.wardrobe_image_url ? (
-                                  <img
-                                    src={match.wardrobe_image_url || "/placeholder.svg"}
-                                    alt={match.wardrobe_image_description || "Wardrobe item"}
-                                    className="w-32 h-32 object-cover rounded-2xl border border-gray-600/50 shadow-md mx-auto mb-3"
-                                  />
+                {/* Upload Message */}
+                {uploadMessage && (
+                  <div
+                    className={`absolute -bottom-20 left-1/2 transform -translate-x-1/2 bg-green-600/90 backdrop-blur-sm text-white px-8 py-4 rounded-2xl shadow-lg transition-opacity duration-500 ${
+                      isMessageFadingOut ? "opacity-0" : "opacity-100"
+                    } whitespace-nowrap text-lg font-medium`}
+                  >
+                    {uploadMessage}
+                  </div>
+                )}
+              </div>
+
+              {/* Generate Button */}
+              <div className="text-center">
+                <Button
+                  className="bg-white text-black hover:bg-gray-100 rounded-full px-20 py-6 text-xl font-bold transition-all duration-300 group flex items-center gap-4 shadow-xl hover:shadow-2xl mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleGenerateOutfits}
+                  disabled={loadingRecommendations || !user}
+                >
+                  <Sparkles className="w-7 h-7" />
+                  {loadingRecommendations ? "Generating AI Outfits..." : "Generate AI Outfits"}
+                </Button>
+
+                {!loadingRecommendations && (
+                  <p className="text-gray-500 mt-4 text-sm">
+                    Our AI will analyze your clothing items and create perfect outfit combinations
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Loading State */}
+            {loadingRecommendations && (
+              <div className="text-center py-16">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-800/50 rounded-full mb-6">
+                  <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <h3 className="text-2xl font-semibold mb-2">Creating Your Outfits</h3>
+                <p className="text-gray-400">
+                  Our AI is analyzing your wardrobe and generating personalized recommendations...
+                </p>
+              </div>
+            )}
+
+            {/* Error State */}
+            {recommendationError && (
+              <div className="text-center py-12">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 max-w-md mx-auto">
+                  <h3 className="text-xl font-semibold text-red-400 mb-2">Generation Failed</h3>
+                  <p className="text-red-300">{recommendationError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Recommendations Modal */}
+            {showRecommendations && recommendations && (
+              <div
+                className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                onClick={() => setShowRecommendations(false)}
+              >
+                <div
+                  className="bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-10 max-w-6xl w-full max-h-[90vh] overflow-auto shadow-2xl relative"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    className="absolute top-8 right-8 text-gray-400 hover:text-white text-3xl font-light transition-colors w-12 h-12 flex items-center justify-center rounded-full hover:bg-gray-800/50"
+                    onClick={() => setShowRecommendations(false)}
+                  >
+                    ×
+                  </button>
+
+                  <div className="text-center mb-12">
+                    <h2 className="text-4xl font-bold mb-4 text-white">Your AI-Generated Outfits</h2>
+                    <p className="text-gray-400 text-lg">Here are personalized outfit combinations based on your wardrobe</p>
+                  </div>
+
+                  {recommendations.length === 0 ? (
+                    <div className="text-center text-gray-400 text-xl py-16">
+                      <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Sparkles className="w-8 h-8 text-gray-500" />
+                      </div>
+                      No outfit recommendations found. Try uploading more clothing items.
+                    </div>
+                  ) : (
+                    <div className="space-y-12">
+                      {recommendations.map((rec, idx) => (
+                        <div key={idx} className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/30">
+                          <div className="flex flex-col lg:flex-row gap-10 items-center">
+                            <div className="relative">
+                              <img
+                                src={rec.outfit.url || "/placeholder.svg"}
+                                alt="Generated Outfit"
+                                className="w-72 h-72 object-cover rounded-3xl border border-gray-600/50 shadow-lg"
+                              />
+                              <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
+                                <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex-1">
+                              <h3 className="text-2xl font-bold text-white mb-6">Matched Wardrobe Items</h3>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                                {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
+                                  rec.matchesWithUrls.map((match: any, i: number) => (
+                                    <div key={i} className="text-center">
+                                      {match.wardrobe_image_url ? (
+                                        <img
+                                          src={match.wardrobe_image_url || "/placeholder.svg"}
+                                          alt={match.wardrobe_image_description || "Wardrobe item"}
+                                          className="w-32 h-32 object-cover rounded-2xl border border-gray-600/50 shadow-md mx-auto mb-3"
+                                        />
+                                      ) : (
+                                        <div className="w-32 h-32 bg-gray-800/50 rounded-2xl flex items-center justify-center text-xs text-gray-500 border border-gray-600/50 mx-auto mb-3">
+                                          No image
+                                        </div>
+                                      )}
+                                      <p className="text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate">
+                                        {match.wardrobe_image_description || match.wardrobe_image_object_name}
+                                      </p>
+                                    </div>
+                                  ))
                                 ) : (
-                                  <div className="w-32 h-32 bg-gray-800/50 rounded-2xl flex items-center justify-center text-xs text-gray-500 border border-gray-600/50 mx-auto mb-3">
-                                    No image
+                                  <div className="col-span-full text-center text-gray-500 text-lg py-8">
+                                    No wardrobe items matched for this outfit.
                                   </div>
                                 )}
-                                <p className="text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate">
-                                  {match.wardrobe_image_description || match.wardrobe_image_object_name}
-                                </p>
                               </div>
-                            ))
-                          ) : (
-                            <div className="col-span-full text-center text-gray-500 text-lg py-8">
-                              No wardrobe items matched for this outfit.
                             </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
