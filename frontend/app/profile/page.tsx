@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
-import { User, Settings, Camera, Trash2, Eye, Shirt } from "lucide-react"
+import { User, Settings, Camera, Trash2, Eye, Shirt, MoreVertical } from "lucide-react"
 import Link from "next/link"
 import { getApiBaseUrl, apiUrl } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -21,6 +21,7 @@ export default function WardrobePage() {
   const [wardrobeLoading, setWardrobeLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<ImageItem | null>(null)
+  const [menuOpenIndex, setMenuOpenIndex] = useState<number | null>(null);
 
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -187,34 +188,36 @@ export default function WardrobePage() {
                   {images.map((image, index) => (
                     <div
                       key={image.id || index}
-                      className="group relative bg-gray-800/30 rounded-3xl overflow-hidden border border-gray-700/50 hover:border-gray-500 transition-all duration-200 h-72 flex flex-col"
+                      className="group relative bg-gray-800/30 rounded-3xl overflow-hidden border border-gray-700/50 transition-all duration-200 h-72 flex flex-col cursor-pointer"
+                      onClick={() => setSelectedImage(image)}
                     >
                       <div className="flex-1 flex items-center justify-center bg-black aspect-square h-full">
                         <ProtectedImage
                           src={image.url}
                           alt={image.description || `Wardrobe item ${index + 1}`}
                           token={token}
-                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                          className="w-full h-full object-contain"
                         />
                       </div>
-
-                      {/* Overlay */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <div className="flex gap-2">
+                      {/* 3-dots menu button, appears on hover */}
+                      <button
+                        type="button"
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-gray-900 rounded-full p-1 transition-opacity z-10 border border-gray-700 shadow"
+                        onClick={e => { e.stopPropagation(); setMenuOpenIndex(index === menuOpenIndex ? null : index); }}
+                      >
+                        <MoreVertical className="w-5 h-5 text-white" />
+                      </button>
+                      {/* Dropdown menu */}
+                      {menuOpenIndex === index && (
+                        <div className="absolute top-10 right-2 bg-gray-900 border border-gray-700 rounded-xl shadow-lg z-20 min-w-[120px]">
                           <button
-                            onClick={() => setSelectedImage(image)}
-                            className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 text-red-500 hover:text-red-600 hover:bg-gray-800 w-full text-left rounded-xl transition-colors"
+                            onClick={e => { e.stopPropagation(); deleteImage(image.id); setMenuOpenIndex(null); }}
                           >
-                            <Eye className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => deleteImage(image.id)}
-                            className="w-10 h-10 bg-red-500/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-red-500/30 transition-colors"
-                          >
-                            <Trash2 className="w-5 h-5" />
+                            <Trash2 className="w-4 h-4" /> Delete
                           </button>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -227,16 +230,16 @@ export default function WardrobePage() {
         {/* Image Preview Modal */}
         {selectedImage && (
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
             onClick={() => setSelectedImage(null)}
           >
             <div
-              className="bg-gray-900 border border-gray-700 rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto"
+              className="bg-gray-900 border border-gray-700 rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold">Wardrobe Item</h3>
-                <button onClick={() => setSelectedImage(null)} className="text-gray-400 hover:text-white text-2xl">
+                <h3 className="text-xl font-semibold text-white">Wardrobe Item</h3>
+                <button onClick={() => setSelectedImage(null)} className="text-gray-400 hover:text-white text-2xl bg-gray-800 rounded-full w-8 h-8 flex items-center justify-center">
                   ×
                 </button>
               </div>
