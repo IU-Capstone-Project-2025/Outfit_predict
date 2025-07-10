@@ -26,7 +26,7 @@ export function Header() {
             <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center mr-3 transition-transform duration-200 outline-none focus:outline-none">
               <Shirt className="w-5 h-5 text-black" />
             </div>
-            <span className="text-2xl font-bold text-white transition-colors tracking-tight">
+            <span className="text-2xl font-semibold text-white transition-colors tracking-tight">
               OutfitPredict
             </span>
           </Link>
