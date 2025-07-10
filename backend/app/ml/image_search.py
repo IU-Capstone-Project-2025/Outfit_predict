@@ -3,9 +3,13 @@ from typing import List, Tuple, Union
 import clip
 import numpy as np
 import torch
+from app.core.logging import get_logger
 from app.schemas.outfit import MatchedItem, RecommendedOutfit
 from app.storage.qdrant_client import QdrantService
 from PIL import Image
+
+# Initialize logger for image search operations
+logger = get_logger("app.ml.image_search")
 
 
 class ImageSearchEngine:
@@ -19,13 +23,28 @@ class ImageSearchEngine:
         Args:
             model_name (str): CLIP model name (by default, 'ViT-B/32')
         """
-        # Load clip model
-        self.model, self.preprocess = clip.load(model_name)
-        # Move model to GPU if available
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model = self.model.to(self.device)
-        # Set model to evaluation mode
-        self.model.eval()
+        logger.info(f"Initializing ImageSearchEngine with model: {model_name}")
+
+        try:
+            # Load clip model
+            logger.debug("Loading CLIP model...")
+            self.model, self.preprocess = clip.load(model_name)
+
+            # Move model to GPU if available
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            logger.info(f"Using device: {self.device}")
+
+            self.model = self.model.to(self.device)
+            # Set model to evaluation mode
+            self.model.eval()
+
+            logger.info(
+                f"ImageSearchEngine initialized successfully with {model_name} on {self.device}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to initialize ImageSearchEngine: {str(e)}")
+            raise
 
     def get_image_embeddings(
         self, images: Union[Image.Image, List[Image.Image]], batch_size: int = 32
@@ -45,35 +64,52 @@ class ImageSearchEngine:
             images = [images]
 
         if not images:
+            logger.warning("Empty image list provided for embedding generation")
             return np.array([])
 
-        all_embeddings = []
+        logger.debug(
+            f"Generating embeddings for {len(images)} images with batch_size={batch_size}"
+        )
 
-        # Process images in batches
-        for i in range(0, len(images), batch_size):
-            batch_images = images[i : i + batch_size]
+        try:
+            all_embeddings = []
 
-            # Preprocess all images in the batch
-            image_tensors = []
-            for image in batch_images:
-                image_tensor = self.preprocess(image)
-                image_tensors.append(image_tensor)
+            # Process images in batches
+            for i in range(0, len(images), batch_size):
+                batch_images = images[i : i + batch_size]
+                logger.debug(
+                    f"Processing batch {i//batch_size + 1}/{(len(images) + batch_size - 1)//batch_size}"
+                    f"with {len(batch_images)} images"
+                )
 
-            # Stack tensors and move to device
-            batch_tensor = torch.stack(image_tensors).to(self.device)
+                # Preprocess all images in the batch
+                image_tensors = []
+                for image in batch_images:
+                    image_tensor = self.preprocess(image)
+                    image_tensors.append(image_tensor)
 
-            # Get embeddings for the batch
-            with torch.no_grad():
-                batch_embeddings = self.model.encode_image(batch_tensor)
-                # Move to CPU and convert to numpy
-                batch_embeddings = batch_embeddings.cpu().numpy()
-                all_embeddings.append(batch_embeddings)
+                # Stack tensors and move to device
+                batch_tensor = torch.stack(image_tensors).to(self.device)
 
-        # Concatenate all batch results
-        if all_embeddings:
-            return np.vstack(all_embeddings)
-        else:
-            return np.array([])
+                # Get embeddings for the batch
+                with torch.no_grad():
+                    batch_embeddings = self.model.encode_image(batch_tensor)
+                    # Move to CPU and convert to numpy
+                    batch_embeddings = batch_embeddings.cpu().numpy()
+                    all_embeddings.append(batch_embeddings)
+
+            # Concatenate all batch results
+            if all_embeddings:
+                result = np.vstack(all_embeddings)
+                logger.info(f"Successfully generated embeddings: shape {result.shape}")
+                return result
+            else:
+                logger.warning("No embeddings generated")
+                return np.array([])
+
+        except Exception as e:
+            logger.error(f"Error generating embeddings: {str(e)}")
+            raise
 
     async def find_similar_images(
         self,
@@ -94,18 +130,35 @@ class ImageSearchEngine:
         Returns:
             List of tuples containing (image_id, similarity_score)
         """
-        # Create embedding for the input image
-        query_vector = self.get_image_embeddings(image)[0]
-
-        # Search for similar vectors in Qdrant
-        similar_points = qdrant.search_vectors(
-            query_vector=query_vector, limit=limit, score_threshold=score_threshold
+        logger.debug(
+            f"Finding similar images (limit={limit}, threshold={score_threshold})"
         )
 
-        # Extract image IDs and scores from results
-        results = [(point.id, point.score) for point in similar_points]
+        try:
+            # Create embedding for the input image
+            logger.debug("Creating embedding for input image")
+            query_vector = self.get_image_embeddings(image)[0]
 
-        return results
+            # Search for similar vectors in Qdrant
+            logger.debug("Searching for similar vectors in Qdrant")
+            similar_points = qdrant.search_vectors(
+                query_vector=query_vector, limit=limit, score_threshold=score_threshold
+            )
+
+            # Extract image IDs and scores from results
+            results = [(point.id, point.score) for point in similar_points]
+
+            logger.info(
+                f"Found {len(results)} similar images above threshold {score_threshold}"
+            )
+            if results:
+                logger.debug(f"Best match score: {results[0][1]:.3f}")
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Error finding similar images: {str(e)}")
+            raise
 
     async def add_image_to_index(
         self, image: Image.Image, image_id: str, outfit_id: str, qdrant: QdrantService
@@ -119,14 +172,31 @@ class ImageSearchEngine:
             outfit_id: ID of the outfit this image belongs to
             qdrant: QdrantService instance
         """
-        # Create embedding
-        vector = self.get_image_embeddings(image)[0]
+        logger.debug(
+            f"Adding image to index: image_id={image_id}, outfit_id={outfit_id}"
+        )
 
-        # Create point with vector and metadata
-        point = {"id": image_id, "vector": vector, "payload": {"outfit_id": outfit_id}}
+        try:
+            # Create embedding
+            logger.debug("Generating embedding for image")
+            vector = self.get_image_embeddings(image)[0]
 
-        # Upsert to Qdrant
-        qdrant.upsert_vectors([point])
+            # Create point with vector and metadata
+            point = {
+                "id": image_id,
+                "vector": vector,
+                "payload": {"outfit_id": outfit_id},
+            }
+
+            # Upsert to Qdrant
+            logger.debug("Upserting vector to Qdrant")
+            qdrant.upsert_vectors([point])
+
+            logger.info(f"Successfully added image to index: {image_id}")
+
+        except Exception as e:
+            logger.error(f"Error adding image to index (image_id={image_id}): {str(e)}")
+            raise
 
     async def find_similar_outfit(
         self,
@@ -161,80 +231,122 @@ class ImageSearchEngine:
             and a list of `MatchedItem`s detailing which
             wardrobe item matches which outfit item.
         """
-        if not images or len(images) != len(wardrobe_object_names):
-            raise ValueError(
-                "Mismatched number of images and object names, or lists are empty."
+        logger.info(f"Starting outfit recommendation for {len(images)} wardrobe items")
+        logger.debug(
+            f"Parameters: score_threshold={score_threshold}, limit_outfits={limit_outfits}"
+        )
+
+        try:
+            if not images or len(images) != len(wardrobe_object_names):
+                error_msg = (
+                    "Mismatched number of images and object names, or lists are empty."
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+
+            # STAGE 1: CANDIDATE GENERATION
+            logger.info("Stage 1: Candidate generation")
+            logger.debug("Generating embeddings for all wardrobe images")
+
+            # Get embeddings for all wardrobe images in a single batch
+            wardrobe_embeddings = self.get_image_embeddings(images)
+            if wardrobe_embeddings.size == 0:
+                logger.warning("No embeddings generated for wardrobe images")
+                return []
+
+            # Find similar items for each wardrobe image and collect unique candidate outfit IDs
+            candidate_outfit_ids = set()
+            for i in range(wardrobe_embeddings.shape[0]):
+                query_vector = wardrobe_embeddings[i].tolist()
+                similar_points = qdrant.search_vectors(
+                    query_vector=query_vector,
+                    limit=50,  # Get more candidates per item
+                    score_threshold=score_threshold,
+                )
+                for point in similar_points:
+                    if "outfit_id" in point.payload:
+                        candidate_outfit_ids.add(point.payload["outfit_id"])
+
+            logger.info(
+                f"Found {len(candidate_outfit_ids)} candidate outfits from wardrobe matching"
             )
 
-        # STAGE 1: CANDIDATE GENERATION
-        # Get embeddings for all wardrobe images in a single batch
-        wardrobe_embeddings = self.get_image_embeddings(images)
-        if wardrobe_embeddings.size == 0:
-            return []
+            if not candidate_outfit_ids:
+                logger.warning("No candidate outfits found")
+                return []
 
-        # Find similar items for each wardrobe image and collect unique candidate outfit IDs
-        candidate_outfit_ids = set()
-        for i in range(wardrobe_embeddings.shape[0]):
-            query_vector = wardrobe_embeddings[i].tolist()
-            similar_points = qdrant.search_vectors(
-                query_vector=query_vector,
-                limit=50,  # Get more candidates per item
-                score_threshold=score_threshold,
-            )
-            for point in similar_points:
-                if "outfit_id" in point.payload:
-                    candidate_outfit_ids.add(point.payload["outfit_id"])
+            # STAGE 2: RE-RANKING
+            logger.info("Stage 2: Re-ranking candidate outfits")
+            ranked_outfits = []
 
-        if not candidate_outfit_ids:
-            return []
+            for i, outfit_id in enumerate(candidate_outfit_ids):
+                logger.debug(
+                    f"Processing candidate outfit {i+1}/{len(candidate_outfit_ids)}: {outfit_id}"
+                )
 
-        # STAGE 2: RE-RANKING
-        ranked_outfits = []
-        for outfit_id in candidate_outfit_ids:
-            # Get all item records for the candidate outfit
-            outfit_item_records = qdrant.get_outfit_vectors(outfit_id)
-            if not outfit_item_records:
-                continue
+                # Get all item records for the candidate outfit
+                outfit_item_records = qdrant.get_outfit_vectors(outfit_id)
+                if not outfit_item_records:
+                    logger.debug(f"No item records found for outfit {outfit_id}")
+                    continue
 
-            # Extract embeddings and IDs
-            outfit_item_embeddings = np.array(
-                [record.vector for record in outfit_item_records]
-            )
-            outfit_item_ids = [record.id for record in outfit_item_records]
+                # Extract embeddings and IDs
+                outfit_item_embeddings = np.array(
+                    [record.vector for record in outfit_item_records]
+                )
+                outfit_item_ids = [record.id for record in outfit_item_records]
 
-            # Calculate similarity matrix between all wardrobe items and all outfit items at once
-            # Shape: (num_wardrobe_items, num_outfit_items)
-            similarity_matrix = np.dot(wardrobe_embeddings, outfit_item_embeddings.T)
+                # Calculate similarity matrix between wardrobe and outfit items
+                similarity_matrix = np.dot(
+                    wardrobe_embeddings, outfit_item_embeddings.T
+                )
 
-            # For each outfit item, find the best matching wardrobe item
-            best_matches_indices = np.argmax(similarity_matrix, axis=0)
-            best_matches_scores = np.max(similarity_matrix, axis=0)
+                # For each outfit item, find the best matching wardrobe item
+                matched_items = []
+                outfit_scores = []
 
-            # Create match details and calculate completeness score
-            matches = []
-            for i, outfit_item_id in enumerate(outfit_item_ids):
-                wardrobe_idx = int(best_matches_indices[i])
-                matches.append(
-                    MatchedItem(
-                        wardrobe_image_index=wardrobe_idx,
-                        wardrobe_image_object_name=wardrobe_object_names[wardrobe_idx],
+                for j, outfit_item_id in enumerate(outfit_item_ids):
+                    similarities = similarity_matrix[:, j]
+                    best_wardrobe_idx = np.argmax(similarities)
+                    best_score = similarities[best_wardrobe_idx]
+
+                    # Create MatchedItem object with correct fields
+                    matched_item = MatchedItem(
                         outfit_item_id=str(outfit_item_id),
-                        score=float(best_matches_scores[i]),
+                        wardrobe_image_index=int(best_wardrobe_idx),
+                        wardrobe_image_object_name=str(
+                            wardrobe_object_names[best_wardrobe_idx]
+                        ),
+                        score=float(best_score),
+                    )
+                    matched_items.append(matched_item)
+                    outfit_scores.append(best_score)
+
+                # Calculate the overall completeness score as the average of all item matches
+                completeness_score = float(np.mean(outfit_scores))
+
+                ranked_outfits.append(
+                    RecommendedOutfit(
+                        outfit_id=outfit_id,
+                        completeness_score=completeness_score,
+                        matches=matched_items,
                     )
                 )
 
-            # Score is the average of the best-match scores for each outfit item
-            completeness_score = np.mean(best_matches_scores)
+            # Sort by completeness score (descending) and return the top outfits
+            ranked_outfits.sort(key=lambda x: x.completeness_score, reverse=True)
+            result = ranked_outfits[:limit_outfits]
 
-            ranked_outfits.append(
-                RecommendedOutfit(
-                    outfit_id=outfit_id,
-                    completeness_score=completeness_score,
-                    matches=matches,
-                )
+            logger.info(
+                f"Outfit recommendation completed: returning {len(result)} outfits"
             )
+            if result:
+                logger.debug(
+                    f"Best recommendation score: {result[0].completeness_score:.3f}"
+                )
 
-        # Sort outfits by the final completeness score
-        ranked_outfits.sort(key=lambda x: x.completeness_score, reverse=True)
+            return result
 
-        return ranked_outfits[:limit_outfits]
+        except Exception as e:
+            logger.error(f"Error in outfit recommendation: {str(e)}")
+            raise

@@ -1,3 +1,4 @@
+from app.core.logging import get_logger
 from app.core.security import create_access_token
 from app.crud.user import authenticate_user, create_user
 from app.deps import get_current_user, get_db, get_minio
@@ -11,6 +12,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Initialize logger for auth operations
+logger = get_logger("app.api.auth")
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -18,25 +22,91 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
 ):
-    user = await authenticate_user(db, form_data.username, form_data.password)
-    if not user:
+    logger.info(f"Login attempt for user: {form_data.username}")
+
+    try:
+        user = await authenticate_user(db, form_data.username, form_data.password)
+        if not user:
+            logger.warning(
+                f"Failed login attempt for user: {form_data.username} - Invalid credentials"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect email or password",
+            )
+
+        access_token = create_access_token({"sub": str(user.id)})
+        logger.info(f"Successful login for user: {form_data.username} (ID: {user.id})")
+
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error for user {form_data.username}: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect email or password",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during login",
         )
-    access_token = create_access_token({"sub": str(user.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.post("/signup", response_model=UserOut)
-async def signup(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
-    existing = await db.scalar(select(User).where(User.email == user_in.email))
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
+@router.post("/register", response_model=UserOut)
+async def register(
+    user_data: UserCreate,
+    db: AsyncSession = Depends(get_db),
+    minio: MinioService = Depends(get_minio),
+):
+    logger.info(f"Registration attempt for email: {user_data.email}")
+
+    try:
+        # Check if user already exists
+        existing_user = await db.scalar(
+            select(User).where(User.email == user_data.email)
         )
-    user = await create_user(db, user_in)
-    return user
+        if existing_user:
+            logger.warning(
+                f"Registration failed - email already exists: {user_data.email}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
+
+        # Create new user
+        new_user = await create_user(db, user_data)
+        logger.info(
+            f"Successfully registered new user: {user_data.email} (ID: {new_user.id})"
+        )
+
+        return UserOut(
+            id=new_user.id,
+            email=new_user.email,
+            is_active=new_user.is_active,
+            created_at=new_user.created_at,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error for email {user_data.email}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during registration",
+        )
+
+
+@router.get("/me", response_model=UserOut)
+async def get_current_user_info(current_user: User = Depends(get_current_user)):
+    logger.debug(
+        f"User info requested for user: {current_user.email} (ID: {current_user.id})"
+    )
+
+    return UserOut(
+        id=current_user.id,
+        email=current_user.email,
+        is_active=current_user.is_active,
+        created_at=current_user.created_at,
+    )
 
 
 @router.delete("/cleanup", status_code=status.HTTP_200_OK)
