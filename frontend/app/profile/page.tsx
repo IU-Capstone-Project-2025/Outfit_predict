@@ -22,6 +22,8 @@ export default function WardrobePage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<ImageItem | null>(null)
   const [menuOpenIndex, setMenuOpenIndex] = useState<number | null>(null);
+  const menuButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const menuRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -78,6 +80,26 @@ export default function WardrobePage() {
       // Optionally show error
     }
   }, [token, user])
+
+  useEffect(() => {
+    if (menuOpenIndex === null) return;
+    function handleClickOutside(event: MouseEvent) {
+      // If no menu is open, do nothing
+      if (menuOpenIndex === null) return;
+      // Check if click is inside the menu or the 3-dots button
+      const menuNode = menuRefs.current[menuOpenIndex];
+      const buttonNode = menuButtonRefs.current[menuOpenIndex];
+      if (
+        menuNode && menuNode.contains(event.target as Node)
+      ) return;
+      if (
+        buttonNode && buttonNode.contains(event.target as Node)
+      ) return;
+      setMenuOpenIndex(null);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpenIndex]);
 
   if (loading) {
     return (
@@ -204,12 +226,16 @@ export default function WardrobePage() {
                         type="button"
                         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-gray-900 rounded-full p-1 transition-opacity z-10 border border-gray-700 shadow"
                         onClick={e => { e.stopPropagation(); setMenuOpenIndex(index === menuOpenIndex ? null : index); }}
+                        ref={el => menuButtonRefs.current[index] = el}
                       >
                         <MoreVertical className="w-5 h-5 text-white" />
                       </button>
                       {/* Dropdown menu */}
                       {menuOpenIndex === index && (
-                        <div className="absolute top-10 right-2 bg-gray-900 border border-gray-700 rounded-xl shadow-lg z-20 min-w-[120px]">
+                        <div
+                          className="absolute top-10 right-2 bg-gray-900 border border-gray-700 rounded-xl shadow-lg z-20 min-w-[120px]"
+                          ref={el => menuRefs.current[index] = el}
+                        >
                           <button
                             className="flex items-center gap-2 px-4 py-2 text-red-500 hover:text-red-600 hover:bg-gray-800 w-full text-left rounded-xl transition-colors"
                             onClick={e => { e.stopPropagation(); deleteImage(image.id); setMenuOpenIndex(null); }}
