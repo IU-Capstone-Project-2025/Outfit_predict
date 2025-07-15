@@ -84,3 +84,6 @@ websockets==15.0.1
 python-jose[cryptography]
 passlib[bcrypt]
 pydantic[email]
+transformers==4.41.2
+timm==0.9.16
+einops==0.8.0
