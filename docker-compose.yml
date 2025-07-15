@@ -50,9 +50,14 @@ services:
     networks: [api-net]
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     env_file:
       - .env
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
     depends_on:
       - backend
     ports:

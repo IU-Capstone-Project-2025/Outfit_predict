@@ -160,7 +160,11 @@ export default function OutfitGeneratorMain() {
       try {
         const blobs = await Promise.all(
           wardrobeImages.map(async (img: any, idx: number) => {
-            const res = await fetch(img.url)
+            const res = await fetch(img.url, {
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            })
             const blob = await res.blob()
             return new File([blob], img.description || `wardrobe_${idx}.jpg`, { type: blob.type })
           })
@@ -199,16 +203,21 @@ export default function OutfitGeneratorMain() {
       if (!imagesRes.ok) throw new Error("Failed to fetch profile images")
       const images = await imagesRes.json()
       // Attach wardrobe image URLs to recommendations
-      const recsWithUrls = recs.map((rec: any) => ({
-        ...rec,
-        matchesWithUrls: rec.matches.map((match: any) => {
-          const wardrobeImage = images.find((img: any) => img.id === match.wardrobe_image_id)
+      const recsWithUrls = recs.map((rec: any) => {
+        const matchesSrc = rec.recommendation?.matches || [];
+        const matchesWithUrls = matchesSrc.map((match: any) => {
+          const wardrobeImage = images.find((img: any) => img.object_name === match.wardrobe_image_object_name || img.id === match.wardrobe_image_id)
           return {
             ...match,
             wardrobe_image_url: wardrobeImage?.url,
-          }
-        }),
-      }))
+            wardrobe_image_description: wardrobeImage?.description,
+          };
+        });
+        return {
+          ...rec,
+          matchesWithUrls,
+        };
+      });
       setRecommendations(recsWithUrls)
       setShowRecommendations(true)
     } catch (err) {
@@ -414,9 +423,10 @@ export default function OutfitGeneratorMain() {
                         <div key={idx} className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/30">
                           <div className="flex flex-col lg:flex-row gap-10 items-center">
                             <div className="relative">
-                              <img
+                              <ProtectedImage
                                 src={rec.outfit.url || "/placeholder.svg"}
                                 alt="Generated Outfit"
+                                token={token}
                                 className="w-72 h-72 object-cover rounded-3xl border border-gray-600/50 shadow-lg"
                               />
                               <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
@@ -431,9 +441,10 @@ export default function OutfitGeneratorMain() {
                                   rec.matchesWithUrls.map((match: any, i: number) => (
                                     <div key={i} className="text-center">
                                       {match.wardrobe_image_url ? (
-                                        <img
+                                        <ProtectedImage
                                           src={match.wardrobe_image_url || "/placeholder.svg"}
                                           alt={match.wardrobe_image_description || "Wardrobe item"}
+                                          token={token}
                                           className="w-32 h-32 object-cover rounded-2xl border border-gray-600/50 shadow-md mx-auto mb-3"
                                         />
                                       ) : (
@@ -466,4 +477,48 @@ export default function OutfitGeneratorMain() {
       </div>
     </div>
   )
+}
+
+function ProtectedImage({ src, alt, token, ...props }: { src: string, alt: string, token: string | null } & React.ImgHTMLAttributes<HTMLImageElement>) {
+  const [imgUrl, setImgUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    if (!src) return;
+
+    // Determine if this src points to the protected backend API.
+    const apiBase = getApiBaseUrl();
+    const isProtectedApi = src.startsWith("/api") || src.startsWith(`${apiBase}/api`);
+
+    // If the URL is already public (e.g., placeholder or external), directly use it
+    if (!isProtectedApi) {
+      setImgUrl(src);
+      return;
+    }
+
+    fetch(src, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch image");
+        return res.blob();
+      })
+      .then(blob => {
+        if (isMounted) setImgUrl(URL.createObjectURL(blob));
+      })
+      .catch(() => {
+        if (isMounted) setImgUrl("/placeholder.svg");
+      });
+
+    return () => {
+      isMounted = false;
+      if (imgUrl) URL.revokeObjectURL(imgUrl);
+    };
+  }, [src, token]);
+
+  if (!imgUrl) return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
+
+  return <img src={imgUrl} alt={alt} loading="lazy" {...props} />;
 }

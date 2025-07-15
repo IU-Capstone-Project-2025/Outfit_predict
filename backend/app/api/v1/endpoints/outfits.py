@@ -15,7 +15,7 @@ from app.ml.ml_models import (
     image_search_engine,
     qdrant_service,
 )
-from app.ml.outfit_processing import FashionSegmentationModel, get_clothes_from_img
+from app.ml.outfit_processing import FashionSegmentationModel
 from app.models.outfit import Outfit
 from app.models.user import User
 from app.schemas.outfit import OutfitRead
@@ -120,13 +120,13 @@ async def get_outfit_file(
     object_name: str,
     db: AsyncSession = Depends(get_db),
     minio: MinioService = Depends(get_minio),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),  # keep auth but drop ownership restriction
 ):
-    """Stream an outfit image from MinIO."""
-    # Verify user owns this outfit
-    outfit = await outfit_crud.get_outfit_by_object_name(
-        db, object_name, current_user.id
-    )
+    """Stream an outfit image from MinIO without user-ownership restriction."""
+    # Fetch outfit irrespective of who uploaded it – outfits are shared globally.
+    outfit = await outfit_crud.get_outfit_by_object_name_any(db, object_name)
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
 
@@ -222,7 +222,7 @@ async def search_similar_outfits(
     return results
 
 
-@router.post("/upload-and-process/", response_model=OutfitRead)
+@router.post("/upload-and-process/", response_model=OutfitRead, deprecated=True)
 async def upload_and_process_outfit(
     request: Request,
     file: UploadFile = File(...),
@@ -233,62 +233,23 @@ async def upload_and_process_outfit(
     qdrant: QdrantService = Depends(get_qdrant_service),
 ):
     """
+    DEPRECATED: Use /split-outfit-to-clothes/ instead.
     Upload an outfit image, store it, detect clothing, and add detected items to Qdrant.
     Returns the created outfit metadata and detected clothing info.
     """
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
+    # Get the segmentation model directly (not through Depends)
+    segmentation_model = get_fashion_segmentation_model()
 
-    # Save uploaded file to a temp file for OpenCV
-    with tempfile.NamedTemporaryFile(
-        delete=False, suffix=os.path.splitext(file.filename)[-1]
-    ) as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
-
-    try:
-        # 1. Upload to MinIO
-        object_name = minio.save_file(content, content_type=file.content_type)
-
-        # 2. Create outfit record in DB
-        outfit = await outfit_crud.create_outfit(db, current_user.id, object_name)
-        outfit_id = str(outfit.id)
-
-        # 3. Detect clothing items
-        detected_clothes = get_clothes_from_img(tmp_path)
-        if not detected_clothes:
-            raise HTTPException(
-                status_code=422, detail="No clothing items detected in the image."
-            )
-
-        # 4. Add each detected clothing item to Qdrant
-        clothing_info = []
-        for name, cropped_img in detected_clothes:
-            # Convert cropped_img (numpy array) to PIL Image
-
-            if cropped_img.size == 0:
-                continue  # skip empty crops
-            pil_img = Image.fromarray(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
-            image_id = str(uuid.uuid4())
-            await image_search.add_image_to_index(
-                image=pil_img, image_id=image_id, outfit_id=outfit_id, qdrant=qdrant
-            )
-            clothing_info.append({"name": name, "image_id": image_id})
-
-        # 5. Build proxy URL
-        proxy_url = request.url_for("get_outfit_file", object_name=outfit.object_name)
-
-        # 6. Return outfit metadata and clothing info
-        return {
-            "id": outfit.id,
-            "object_name": outfit.object_name,
-            "created_at": outfit.created_at,
-            "url": str(proxy_url),
-            "clothing_items": clothing_info,
-        }
-    finally:
-        os.remove(tmp_path)
+    return await split_outfit_to_clothes(
+        request=request,
+        file=file,
+        db=db,
+        minio=minio,
+        segmentation_model=segmentation_model,
+        image_search=image_search,
+        qdrant=qdrant,
+        current_user=current_user,
+    )
 
 
 @router.delete("/{outfit_id}", status_code=status.HTTP_204_NO_CONTENT)

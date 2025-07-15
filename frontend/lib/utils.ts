@@ -12,5 +12,5 @@ export function getApiBaseUrl() {
 
 // Helper to join API base with a path, avoiding double slashes
 export function apiUrl(path: string) {
-  return `${getApiBaseUrl()}/${path.replace(/^\//, "")}`;
+  return `${getApiBaseUrl()}/api/${path.replace(/^\//, "")}`;
 }

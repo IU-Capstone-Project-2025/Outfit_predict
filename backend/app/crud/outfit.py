@@ -52,6 +52,14 @@ async def get_outfit_by_object_name(
     return res.scalar_one_or_none()
 
 
+async def get_outfit_by_object_name_any(
+    db: AsyncSession, object_name: str
+) -> Outfit | None:
+    """Get outfit by object name without filtering by user ownership."""
+    res = await db.execute(select(Outfit).where(Outfit.object_name == object_name))
+    return res.scalar_one_or_none()
+
+
 async def delete_outfit(
     db: AsyncSession, outfit_id: UUID, user_id: uuid.UUID
 ) -> Outfit | None:
