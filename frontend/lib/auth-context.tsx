@@ -32,10 +32,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // On mount, check for token
     const token = localStorage.getItem("token")
     const email = localStorage.getItem("user_email")
-    if (token && email) {
-      setUser({ email })
+    async function validateSession() {
+      if (token) {
+        try {
+          const res = await fetch(apiUrl('v1/auth/me'), {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (!res.ok) throw new Error('Invalid session')
+          const data = await res.json()
+          // Optionally update email from backend
+          setUser({ email: data.email })
+        } catch {
+          localStorage.removeItem("token")
+          localStorage.removeItem("user_email")
+          setUser(null)
+        }
+      } else {
+        setUser(null)
+      }
+      setLoading(false)
     }
-    setLoading(false)
+    validateSession()
   }, [])
 
   function setTokenCookie(token: string) {
@@ -64,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signup = async (email: string, password: string) => {
-    const res = await fetch(apiUrl('v1/auth/signup'), {
+    const res = await fetch(apiUrl('v1/auth/register'), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
