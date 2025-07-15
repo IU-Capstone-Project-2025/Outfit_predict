@@ -17,9 +17,7 @@ from app.ml.ml_models import (
     image_search_engine,
     qdrant_service,
 )
-
-from app.ml.outfit_processing import FashionSegmentationModel, get_clothes_from_img
-from app.models.outfit import Outfit
+from app.ml.outfit_processing import FashionSegmentationModel
 from app.models.user import User
 from app.schemas.outfit import OutfitRead
 from app.storage.minio_client import MinioService
@@ -193,13 +191,11 @@ async def get_outfit_file(
         get_current_user
     ),  # keep auth but drop ownership restriction
 ):
-
     """Stream an outfit image from MinIO without user-ownership restriction."""
     # Fetch outfit irrespective of who uploaded it – outfits are shared globally.
     outfit = await outfit_crud.get_outfit_by_object_name_any(db, object_name)
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
-
 
     try:
         # Verify user owns this outfit
