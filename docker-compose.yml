@@ -47,14 +47,17 @@ services:
           memory: 6G
     ports:
       - "8000:8000"
-    volumes:
-      - ./logs:/usr/src/app/logs  # Mount logs directory to host
     networks: [api-net]
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     env_file:
       - .env
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
     depends_on:
       - backend
     ports:

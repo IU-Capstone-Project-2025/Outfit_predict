@@ -14,6 +14,8 @@ WORKDIR /usr/src/app
 COPY requirements.txt .
 RUN pip install --user -r requirements.txt
 
+RUN python -c "import clip; clip.load('ViT-B/32')"
+
 #--------------------- STAGE 2: Final Image ---------------------
 FROM python:3.13-slim
 
@@ -27,6 +29,8 @@ RUN apt-get update && apt-get install -y \
 ENV PATH="/root/.local/bin:${PATH}"
 
 COPY --from=builder /root/.local /root/.local
+# Copy the PyTorch hub cache with the CLIP model
+COPY --from=builder /root/.cache /root/.cache
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
