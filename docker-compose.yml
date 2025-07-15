@@ -47,6 +47,8 @@ services:
           memory: 6G
     ports:
       - "8000:8000"
+    volumes:
+      - ./logs:/usr/src/app/logs
     networks: [api-net]
 
   frontend:
