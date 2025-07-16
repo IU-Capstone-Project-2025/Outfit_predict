@@ -203,6 +203,31 @@ export default function OutfitGeneratorMain() {
     }
   }, [showUploadMessage, token, user])
 
+  // Add a helper component for image with placeholder
+  function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
+    const [loaded, setLoaded] = React.useState(false);
+    return (
+      <>
+        {!loaded && (
+          <img
+            src="/placeholder.svg"
+            alt="placeholder"
+            className={className + " absolute inset-0 w-full h-full object-contain z-0"}
+            style={{ background: 'transparent' }}
+          />
+        )}
+        <ProtectedImage
+          src={src}
+          alt={alt}
+          token={token}
+          className={className + (loaded ? '' : ' invisible')}
+          onLoad={() => setLoaded(true)}
+          {...props}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
       {/* Enhanced Geometric Background Pattern */}
@@ -278,23 +303,36 @@ export default function OutfitGeneratorMain() {
                 {recommendations.map((rec, idx) => (
                   <div key={idx} className="bg-gray-900/80 rounded-3xl p-8 border border-gray-700/50">
                     <div className="flex flex-col lg:flex-row gap-10 items-center">
-                      <div className="relative">
+                      {/* For the main outfit image */}
+                      <div className="relative w-72 h-72 flex-shrink-0">
+                        {/* Placeholder */}
+                        <img src="/placeholder.svg" alt="placeholder" className="absolute inset-0 w-full h-full object-contain rounded-3xl z-0" />
+                        {/* Blurred background */}
+                        <div className="absolute inset-0 rounded-3xl overflow-hidden z-0">
+                          <ProtectedImage
+                            src={rec.outfit.url || "/placeholder.svg"}
+                            alt=""
+                            token={token}
+                            className="w-full h-full object-cover scale-110 blur-lg"
+                          />
+                        </div>
+                        {/* Main image */}
                         <div
-                          className="cursor-pointer"
+                          className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
                           onClick={() => setPreviewImage({
                             src: rec.outfit.url || "/placeholder.svg",
                             alt: `Generated Outfit #${idx + 1}`
                           })}
                         >
-                          <ProtectedImage
+                          <ImageWithPlaceholder
                             src={rec.outfit.url || "/placeholder.svg"}
                             alt="Generated Outfit"
                             token={token}
-                            className="w-72 h-72 object-cover rounded-3xl border border-gray-700/50 shadow-lg bg-black"
+                            className="w-full h-full object-contain rounded-3xl"
                           />
-                          <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
-                            <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
-                          </div>
+                        </div>
+                        <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2 z-20">
+                          <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
                         </div>
                       </div>
 
@@ -303,29 +341,35 @@ export default function OutfitGeneratorMain() {
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                           {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
                             rec.matchesWithUrls.map((match: any, i: number) => (
-                              <div key={i} className="text-center">
-                                {match.wardrobe_image_url ? (
-                                  <div
-                                    className="cursor-pointer"
-                                    onClick={() => setPreviewImage({
-                                      src: match.wardrobe_image_url,
-                                      alt: match.wardrobe_image_description || "Wardrobe item",
-                                      description: match.wardrobe_image_description
-                                    })}
-                                  >
-                                    <ProtectedImage
-                                      src={match.wardrobe_image_url || "/placeholder.svg"}
-                                      alt={match.wardrobe_image_description || "Wardrobe item"}
-                                      token={token}
-                                      className="w-32 h-32 object-cover rounded-2xl border border-gray-700/50 shadow-md mx-auto mb-3 bg-black"
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="w-32 h-32 bg-gray-900/60 rounded-2xl flex items-center justify-center text-xs text-gray-500 border border-gray-700/50 mx-auto mb-3">
-                                    No image
-                                  </div>
-                                )}
-                                <p className="text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate">
+                              <div key={i} className="text-center relative w-32 h-32 mx-auto">
+                                {/* Placeholder */}
+                                <img src="/placeholder.svg" alt="placeholder" className="absolute inset-0 w-full h-full object-contain rounded-2xl z-0" />
+                                {/* Blurred background */}
+                                <div className="absolute inset-0 rounded-2xl overflow-hidden z-0">
+                                  <ProtectedImage
+                                    src={match.wardrobe_image_url || "/placeholder.svg"}
+                                    alt=""
+                                    token={token}
+                                    className="w-full h-full object-cover scale-110 blur-lg"
+                                  />
+                                </div>
+                                {/* Main image */}
+                                <div
+                                  className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
+                                  onClick={() => setPreviewImage({
+                                    src: match.wardrobe_image_url || "/placeholder.svg",
+                                    alt: match.wardrobe_image_description || "Wardrobe item",
+                                    description: match.wardrobe_image_description
+                                  })}
+                                >
+                                  <ImageWithPlaceholder
+                                    src={match.wardrobe_image_url || "/placeholder.svg"}
+                                    alt={match.wardrobe_image_description || "Wardrobe item"}
+                                    token={token}
+                                    className="w-full h-full object-contain rounded-2xl"
+                                  />
+                                </div>
+                                <p className="relative z-20 text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate mt-2">
                                   {match.wardrobe_image_description || ''}
                                 </p>
                               </div>
