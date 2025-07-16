@@ -15,6 +15,11 @@ jobs:
       with:
         lfs: true  # Important for model files
 
+    - name: Fix log permissions
+      run: |
+        # Fix permissions for log files that might be created by Docker containers
+        ./devops/fix-log-permissions.sh
+
     - name: Set up environment
       run: |
         # Copy persistent .env file from runner home
@@ -60,6 +65,9 @@ jobs:
 
         # Clean up any orphaned containers
         docker container prune -f || true
+
+        # Fix log file permissions before building
+        ./devops/fix-log-permissions.sh
 
     - name: Build and deploy
       run: |
@@ -171,6 +179,9 @@ jobs:
       if: failure()
       run: |
         echo "❌ Deployment failed, attempting rollback..."
+
+        # Fix log permissions for cleanup
+        ./devops/fix-log-permissions.sh
 
         BACKUP_DIR="$HOME/backups"
         if [[ -f "$BACKUP_DIR/latest_backup.txt" ]]; then
