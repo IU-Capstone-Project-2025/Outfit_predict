@@ -1,216 +1,120 @@
 # DevOps & Deployment
 
-This directory contains all the necessary files and documentation for deploying the Outfit Predict application using Continuous Deployment (CD) with GitHub Actions.
+This directory contains deployment files and scripts for the Outfit Predict application using a self-hosted GitHub Actions runner.
 
-## 📁 Files Overview
+##  Files Overview
 
-- **`DEPLOYMENT_SETUP.md`** - Complete setup guide for CD pipeline
-- **`deploy.sh`** - Production deployment script with rollback capabilities
-- **`setup-nginx.sh`** - Nginx configuration script for reverse proxy
+- **`setup-self-hosted-runner.sh`** - Self-hosted GitHub Actions runner installation script
+- **`initial-deploy.sh`** - Manual deployment script (fallback)
 - **`env.production.template`** - Environment variables template for production
-- **`docker-compose.prod.yml`** - Optimized production Docker Compose configuration
+- **`setup-nginx.sh`** - Nginx configuration script for reverse proxy
 
-## 🚀 Quick Start
+##  Quick Start
 
-### 1. One-Time Setup
+** Follow the complete setup guide:** [`DEPLOYMENT_GUIDE.md`](../DEPLOYMENT_GUIDE.md)
 
-```bash
-# 1. Configure GitHub Secrets (see DEPLOYMENT_SETUP.md for details)
-# Required secrets:
-# - DEPLOY_HOST (your server IP/domain)
-# - DEPLOY_USER (SSH username)
-# - DEPLOY_SSH_KEY (SSH private key)
-# - NEXT_PUBLIC_API_URL (frontend API URL)
+### Summary of Steps:
 
-# 2. Set up your server
-ssh user@your-server.com
-git lfs clone https://github.com/IU-Capstone-Project-2025/Outfit_predict.git
-cd Outfit_predict
+1. **Setup Environment**
+   ```bash
+   chmod +x devops/setup-self-hosted-runner.sh devops/initial-deploy.sh
+   cp devops/env.production.template .env
+   nano .env  # Configure your values
+   ```
 
-# 3. Configure environment
-cp devops/env.production.template .env
-nano .env  # Fill in your actual values
+2. **Install Runner**
+   ```bash
+   sudo ./devops/setup-self-hosted-runner.sh
+   ```
 
-# 4. Make deployment script executable
-chmod +x devops/deploy.sh
+3. **Configure & Start**
+   ```bash
+   # Get token from GitHub Settings → Actions → Runners
+   sudo -u github-runner /home/github-runner/configure-runner.sh \
+     https://github.com/IU-Capstone-Project-2025/Outfit_predict YOUR_TOKEN
 
-# 5. Run initial deployment
-./devops/deploy.sh deploy
-```
+   sudo systemctl start github-actions-runner
+   sudo systemctl enable github-actions-runner
+   ```
 
-### 2. Automatic Deployment
+4. **Deploy**
+   ```bash
+   git push origin main  # Automatic deployment!
+   ```
 
-Once configured, deployment happens automatically:
-
-- **Push to `main` branch** → Triggers automatic deployment
-- **Manual trigger** → Go to Actions tab in GitHub and run "CD - Deploy to Production"
-
-## 🔄 CD Pipeline Flow
+## 🔄 How It Works
 
 ```mermaid
 graph TD
-    A[Push to main] --> B[GitHub Actions Triggered]
-    B --> C[Build Docker Images]
-    C --> D[Push to GitHub Container Registry]
-    D --> E[SSH to Production Server]
-    E --> F[Pull Latest Images]
-    F --> G[Update Docker Compose]
-    G --> H[Deploy New Containers]
-    H --> I[Health Check]
-    I --> J{All Healthy?}
-    J -->|Yes| K[Deployment Success]
-    J -->|No| L[Automatic Rollback]
-    L --> M[Restore Previous Version]
+    A[Push to main] --> B[Self-hosted Runner on Server]
+    B --> C[Checkout Code Locally]
+    C --> D[Build Docker Images]
+    D --> E[Deploy with docker-compose]
+    E --> F[Health Checks]
+    F --> G[Success! 🎉]
 ```
 
-## 🛠️ Manual Operations
+**Benefits:**
+-  **Fast**: ~3-5 minutes deployment
+-  **Local**: No Docker registry needed
+-  **Automatic**: Push to deploy
+-  **Secure**: Isolated runner user
+-  **Resource efficient**: Uses your server directly
 
-### Deploy Latest Version
+## Management Commands
+
+### Runner Control
 ```bash
-ssh user@your-server.com
-cd Outfit_predict
-./devops/deploy.sh deploy
+sudo systemctl status github-actions-runner    # Check status
+sudo systemctl restart github-actions-runner   # Restart
+sudo journalctl -u github-actions-runner -f    # View logs
 ```
 
-### Check Service Health
+### Application Control
 ```bash
-./devops/deploy.sh health
+docker-compose ps                    # Check containers
+docker-compose logs -f              # View logs
+docker-compose restart backend      # Restart service
+./devops/initial-deploy.sh           # Manual deployment
 ```
 
-### Rollback to Previous Version
+##  Monitoring
+
+- **Runner Status**: GitHub → Settings → Actions → Runners
+- **Deployment Logs**: `sudo journalctl -u github-actions-runner -f`
+- **Application**:
+  - Frontend: http://localhost:3000
+  - Backend: http://localhost:8000
+  - API Docs: http://localhost:8000/docs
+  - MinIO: http://localhost:9001
+
+##  Common Issues & Fixes
+
+### Runner Offline
 ```bash
-./devops/deploy.sh rollback
+sudo systemctl restart github-actions-runner
+sudo usermod -aG docker github-runner
 ```
 
-### View Deployment Logs
+### Deployment Fails
 ```bash
-tail -f /var/log/outfit-deploy.log
+./devops/initial-deploy.sh  # Manual fallback
+docker-compose ps           # Check containers
+docker-compose logs         # Check logs
 ```
 
-### Check Running Services
+### Permission Errors
 ```bash
-docker-compose -f docker-compose.prod.yml ps
-docker-compose -f docker-compose.prod.yml logs -f
+sudo chown -R github-runner:github-runner /home/github-runner/
+sudo systemctl restart github-actions-runner
 ```
 
-## 🔧 Configuration Files
+##  Need Help?
 
-### GitHub Actions Workflow
-- **Location:** `.github/workflows/cd.yml`
-- **Purpose:** Automates the entire deployment process
-- **Features:**
-  - Multi-platform Docker builds with cache optimization
-  - Automatic image tagging and versioning
-  - SSH-based deployment with health checks
-  - Slack notifications (optional)
+-  **Complete Guide**: [`DEPLOYMENT_GUIDE.md`](../DEPLOYMENT_GUIDE.md)
+-  **Debug**: `sudo journalctl -u github-actions-runner -f`
+-  **Manual Deploy**: `./devops/initial-deploy.sh`
 
-### Deployment Script
-- **Location:** `devops/deploy.sh`
-- **Purpose:** Robust server-side deployment with backup/rollback
-- **Features:**
-  - Automatic backup before deployment
-  - Health checks with automatic rollback on failure
-  - Colored output and comprehensive logging
-  - Support for manual operations
+---
 
-### Production Docker Compose
-- **Location:** `docker-compose.prod.yml`
-- **Purpose:** Optimized container configuration for production
-- **Features:**
-  - Pre-built images from GitHub Container Registry
-  - Health checks for all services
-  - Resource limits and reservations
-  - Dependency management with proper startup order
-
-## 📊 Monitoring
-
-### Health Endpoints
-- **Frontend:** `http://localhost:3000/`
-- **Backend:** `http://localhost:8000/health`
-- **Backend API Docs:** `http://localhost:8000/docs`
-- **MinIO Console:** `http://localhost:9001/`
-
-### Log Files
-- **Deployment:** `/var/log/outfit-deploy.log`
-- **Application:** `./logs/` (mounted volume)
-- **Container Logs:** `docker-compose logs <service>`
-
-### Service Status
-```bash
-# Check all services
-docker-compose -f docker-compose.prod.yml ps
-
-# Check specific service
-docker-compose -f docker-compose.prod.yml ps backend
-
-# View service logs
-docker-compose -f docker-compose.prod.yml logs -f backend
-```
-
-## 🔐 Security Best Practices
-
-1. **Environment Variables:** All sensitive data stored in `.env` file, never committed
-2. **SSH Access:** Uses dedicated SSH key for deployment, stored in GitHub Secrets
-3. **Container Registry:** Images stored in GitHub Container Registry with access controls
-4. **Resource Limits:** All containers have memory/CPU limits to prevent resource exhaustion
-5. **Health Checks:** Automatic health monitoring with rollback on failure
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Deployment Fails**
-   ```bash
-   # Check deployment logs
-   tail -f /var/log/outfit-deploy.log
-
-   # Check GitHub Actions logs
-   # Go to repository → Actions → Latest workflow run
-   ```
-
-2. **Services Not Starting**
-   ```bash
-   # Check container status
-   docker-compose -f docker-compose.prod.yml ps
-
-   # Check service logs
-   docker-compose -f docker-compose.prod.yml logs <service>
-
-   # Check system resources
-   free -h && df -h
-   ```
-
-3. **SSH Connection Issues**
-   ```bash
-   # Test SSH connection
-   ssh -i ~/.ssh/your-key user@server
-
-   # Check SSH key in GitHub Secrets
-   # Verify public key is in server's ~/.ssh/authorized_keys
-   ```
-
-### Emergency Procedures
-
-1. **Immediate Rollback**
-   ```bash
-   ssh user@server
-   cd Outfit_predict
-   ./devops/deploy.sh rollback
-   ```
-
-2. **Manual Container Restart**
-   ```bash
-   docker-compose -f docker-compose.prod.yml restart
-   ```
-
-3. **Complete Reset**
-   ```bash
-   docker-compose -f docker-compose.prod.yml down
-   docker-compose -f docker-compose.prod.yml up -d
-   ```
-
-## 📞 Support
-
-- **Deployment Issues:** Check `DEPLOYMENT_SETUP.md` for detailed troubleshooting
-- **GitHub Actions:** Review workflow logs in the Actions tab
-- **Server Issues:** SSH into server and check logs in `/var/log/outfit-deploy.log`
+** Result**: Push any change to `main` → Automatic deployment in ~3-5 minutes! 🚀

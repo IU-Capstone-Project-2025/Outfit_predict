@@ -1,0 +1,193 @@
+name: CD - Self-Hosted Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual deployment
+
+jobs:
+  deploy-self-hosted:
+    runs-on: [self-hosted, linux, outfit-predict]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        lfs: true  # Important for model files
+
+    - name: Set up environment
+      run: |
+        # Ensure we have the latest environment
+        if [[ ! -f ".env" ]]; then
+          echo "❌ .env file not found! Please create it from devops/env.production.template"
+          exit 1
+        fi
+
+        # Verify Docker is accessible
+        docker --version
+        docker-compose --version
+
+    - name: Create backup
+      run: |
+        # Create backup directory
+        BACKUP_DIR="$HOME/backups"
+        mkdir -p "$BACKUP_DIR"
+
+        # Create backup if containers exist
+        if docker-compose ps | grep -q "Up\|Exited" 2>/dev/null; then
+          echo "📦 Creating backup..."
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          BACKUP_PATH="$BACKUP_DIR/outfit_backup_$TIMESTAMP"
+          mkdir -p "$BACKUP_PATH"
+
+          # Backup configuration files
+          cp docker-compose.yml "$BACKUP_PATH/" 2>/dev/null || true
+          cp .env "$BACKUP_PATH/" 2>/dev/null || true
+
+          echo "✅ Backup created at $BACKUP_PATH"
+          echo "$BACKUP_PATH" > "$BACKUP_DIR/latest_backup.txt"
+        else
+          echo "ℹ️ No existing containers to backup"
+        fi
+
+    - name: Stop existing services
+      run: |
+        echo "🛑 Stopping existing services..."
+        docker-compose down || true
+
+        # Clean up any orphaned containers
+        docker container prune -f || true
+
+    - name: Build and deploy
+      run: |
+        echo "🔨 Building and deploying application..."
+
+        # Build with no cache to ensure fresh build
+        docker-compose build --no-cache
+
+        # Start services
+        docker-compose up -d
+
+        echo "✅ Services started"
+
+    - name: Wait for services
+      run: |
+        echo "⏳ Waiting for services to be ready..."
+        sleep 60
+
+    - name: Health checks
+      run: |
+        echo "🏥 Performing health checks..."
+
+        # Function to check service with retries
+        check_service() {
+          local url=$1
+          local service_name=$2
+          local max_attempts=10
+          local attempt=1
+
+          while [ $attempt -le $max_attempts ]; do
+            if curl -f "$url" > /dev/null 2>&1; then
+              echo "✅ $service_name is healthy"
+              return 0
+            fi
+            echo "⏳ $service_name not ready, attempt $attempt/$max_attempts..."
+            sleep 10
+            attempt=$((attempt + 1))
+          done
+
+          echo "❌ $service_name health check failed after $max_attempts attempts"
+          return 1
+        }
+
+        # Check frontend
+        check_service "http://localhost:3000" "Frontend"
+
+        # Check backend
+        if ! check_service "http://localhost:8000/health" "Backend (health endpoint)"; then
+          # Fallback to root endpoint
+          check_service "http://localhost:8000" "Backend (root endpoint)"
+        fi
+
+        # Check API docs
+        if curl -f "http://localhost:8000/docs" > /dev/null 2>&1; then
+          echo "✅ Backend API documentation is accessible"
+        fi
+
+    - name: Deployment summary
+      run: |
+        echo "📊 Deployment Summary"
+        echo "===================="
+
+        # Show running containers
+        echo "🐳 Running containers:"
+        docker-compose ps
+
+        echo ""
+        echo "🌐 Service URLs:"
+        echo "• Frontend: http://localhost:3000"
+        echo "• Backend API: http://localhost:8000"
+        echo "• API Docs: http://localhost:8000/docs"
+        echo "• MinIO Console: http://localhost:9001"
+
+        # Show disk usage
+        echo ""
+        echo "💾 Disk usage:"
+        df -h / | tail -1
+
+        # Show memory usage
+        echo ""
+        echo "🧠 Memory usage:"
+        free -h
+
+    - name: Cleanup old images
+      if: success()
+      run: |
+        echo "🧹 Cleaning up old Docker images..."
+        docker image prune -f
+
+        # Remove old backups (keep last 5)
+        BACKUP_DIR="$HOME/backups"
+        if [[ -d "$BACKUP_DIR" ]]; then
+          find "$BACKUP_DIR" -name "outfit_backup_*" -type d | sort -r | tail -n +6 | xargs -r rm -rf
+          echo "✅ Old backups cleaned up"
+        fi
+
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        echo "❌ Deployment failed, attempting rollback..."
+
+        BACKUP_DIR="$HOME/backups"
+        if [[ -f "$BACKUP_DIR/latest_backup.txt" ]]; then
+          BACKUP_PATH=$(cat "$BACKUP_DIR/latest_backup.txt")
+          if [[ -d "$BACKUP_PATH" ]]; then
+            echo "🔄 Restoring from backup: $BACKUP_PATH"
+
+            # Restore configuration
+            cp "$BACKUP_PATH/docker-compose.yml" . 2>/dev/null || true
+            cp "$BACKUP_PATH/.env" . 2>/dev/null || true
+
+            # Restart with old configuration
+            docker-compose down || true
+            docker-compose up -d || true
+
+            echo "✅ Rollback completed"
+          fi
+        else
+          echo "⚠️ No backup found for rollback"
+        fi
+
+    - name: Send notification
+      if: always()
+      run: |
+        if [[ "${{ job.status }}" == "success" ]]; then
+          echo "🎉 Deployment completed successfully!"
+        else
+          echo "💥 Deployment failed!"
+        fi
+
+        # You can add Slack/Discord/email notifications here
+        # Example: curl -X POST -H 'Content-type: application/json' \
+        #   --data '{"text":"Deployment ${{ job.status }}"}' \
+        #   ${{ secrets.SLACK_WEBHOOK }}
