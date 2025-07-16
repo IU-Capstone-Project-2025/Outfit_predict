@@ -65,7 +65,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ open, onCl
       >
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-white">Image Preview</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl bg-gray-800 rounded-full w-8 h-8 flex items-center justify-center">
+          <button onClick={onClose} className="flex items-center justify-center w-8 h-8 rounded-full text-gray-400 hover:text-white text-2xl bg-gray-800 transition-colors">
             ×
           </button>
         </div>

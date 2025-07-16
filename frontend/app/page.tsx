@@ -242,6 +242,110 @@ export default function OutfitGeneratorMain() {
         token={token}
       />
 
+      {/* Recommendations Modal rendered at the top level, outside main content, to avoid header overlay */}
+      {showRecommendations && recommendations && !previewImage && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            if (!previewImage) setShowRecommendations(false);
+          }}
+        >
+          <div
+            className="bg-gray-900/95 border border-gray-700/50 rounded-3xl p-10 max-w-6xl w-full max-h-[90vh] overflow-auto shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-8 right-8 flex items-center justify-center w-12 h-12 rounded-full text-gray-300 hover:text-white text-3xl font-light transition-colors hover:bg-gray-800/50"
+              onClick={() => setShowRecommendations(false)}
+            >
+              ×
+            </button>
+
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-bold mb-4 text-white">Your AI-Generated Outfits</h2>
+              <p className="text-gray-400 text-lg">Here are personalized outfit combinations based on your wardrobe</p>
+            </div>
+
+            {recommendations.length === 0 ? (
+              <div className="text-center text-gray-400 text-xl py-16">
+                <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-8 h-8 text-gray-500" />
+                </div>
+                No outfit recommendations found. Try uploading more clothing items.
+              </div>
+            ) : (
+              <div className="space-y-12">
+                {recommendations.map((rec, idx) => (
+                  <div key={idx} className="bg-gray-900/80 rounded-3xl p-8 border border-gray-700/50">
+                    <div className="flex flex-col lg:flex-row gap-10 items-center">
+                      <div className="relative">
+                        <div
+                          className="cursor-pointer"
+                          onClick={() => setPreviewImage({
+                            src: rec.outfit.url || "/placeholder.svg",
+                            alt: `Generated Outfit #${idx + 1}`
+                          })}
+                        >
+                          <ProtectedImage
+                            src={rec.outfit.url || "/placeholder.svg"}
+                            alt="Generated Outfit"
+                            token={token}
+                            className="w-72 h-72 object-cover rounded-3xl border border-gray-700/50 shadow-lg bg-black"
+                          />
+                          <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
+                            <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex-1">
+                        <h3 className="text-2xl font-bold text-white mb-6">Matched Wardrobe Items</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                          {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
+                            rec.matchesWithUrls.map((match: any, i: number) => (
+                              <div key={i} className="text-center">
+                                {match.wardrobe_image_url ? (
+                                  <div
+                                    className="cursor-pointer"
+                                    onClick={() => setPreviewImage({
+                                      src: match.wardrobe_image_url,
+                                      alt: match.wardrobe_image_description || "Wardrobe item",
+                                      description: match.wardrobe_image_description
+                                    })}
+                                  >
+                                    <ProtectedImage
+                                      src={match.wardrobe_image_url || "/placeholder.svg"}
+                                      alt={match.wardrobe_image_description || "Wardrobe item"}
+                                      token={token}
+                                      className="w-32 h-32 object-cover rounded-2xl border border-gray-700/50 shadow-md mx-auto mb-3 bg-black"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-32 h-32 bg-gray-900/60 rounded-2xl flex items-center justify-center text-xs text-gray-500 border border-gray-700/50 mx-auto mb-3">
+                                    No image
+                                  </div>
+                                )}
+                                <p className="text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate">
+                                  {match.wardrobe_image_description || ''}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="col-span-full text-center text-gray-400 text-lg py-8">
+                              No wardrobe items matched for this outfit.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="relative z-10 container mx-auto px-4 py-12">
         {!user ? (
           <div className="text-center text-xl text-gray-300 py-24">
@@ -370,111 +474,6 @@ export default function OutfitGeneratorMain() {
                 <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 max-w-md mx-auto">
                   <h3 className="text-xl font-semibold text-red-400 mb-2">Generation Failed</h3>
                   <p className="text-red-300">{recommendationError}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Recommendations Modal */}
-            {showRecommendations && recommendations && (
-              <div
-                className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                onClick={() => {
-                  // Only close recommendations modal if preview is not open
-                  if (!previewImage) setShowRecommendations(false);
-                }}
-              >
-                <div
-                  className="bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-10 max-w-6xl w-full max-h-[90vh] overflow-auto shadow-2xl relative"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    className="absolute top-8 right-8 text-gray-400 hover:text-white text-3xl font-light transition-colors w-12 h-12 flex items-center justify-center rounded-full hover:bg-gray-800/50"
-                    onClick={() => setShowRecommendations(false)}
-                  >
-                    ×
-                  </button>
-
-                  <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold mb-4 text-white">Your AI-Generated Outfits</h2>
-                    <p className="text-gray-400 text-lg">Here are personalized outfit combinations based on your wardrobe</p>
-                  </div>
-
-                  {recommendations.length === 0 ? (
-                    <div className="text-center text-gray-400 text-xl py-16">
-                      <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Sparkles className="w-8 h-8 text-gray-500" />
-                      </div>
-                      No outfit recommendations found. Try uploading more clothing items.
-                    </div>
-                  ) : (
-                    <div className="space-y-12">
-                      {recommendations.map((rec, idx) => (
-                        <div key={idx} className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/30">
-                          <div className="flex flex-col lg:flex-row gap-10 items-center">
-                            <div className="relative">
-                              <div
-                                className="cursor-pointer"
-                                onClick={() => setPreviewImage({
-                                  src: rec.outfit.url || "/placeholder.svg",
-                                  alt: `Generated Outfit #${idx + 1}`
-                                })}
-                              >
-                                <ProtectedImage
-                                  src={rec.outfit.url || "/placeholder.svg"}
-                                  alt="Generated Outfit"
-                                  token={token}
-                                  className="w-72 h-72 object-cover rounded-3xl border border-gray-600/50 shadow-lg"
-                                />
-                                <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
-                                  <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex-1">
-                              <h3 className="text-2xl font-bold text-white mb-6">Matched Wardrobe Items</h3>
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                                {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
-                                  rec.matchesWithUrls.map((match: any, i: number) => (
-                                    <div key={i} className="text-center">
-                                      {match.wardrobe_image_url ? (
-                                        <div
-                                          className="cursor-pointer"
-                                          onClick={() => setPreviewImage({
-                                            src: match.wardrobe_image_url,
-                                            alt: match.wardrobe_image_description || "Wardrobe item",
-                                            description: match.wardrobe_image_description
-                                          })}
-                                        >
-                                          <ProtectedImage
-                                            src={match.wardrobe_image_url || "/placeholder.svg"}
-                                            alt={match.wardrobe_image_description || "Wardrobe item"}
-                                            token={token}
-                                            className="w-32 h-32 object-cover rounded-2xl border border-gray-600/50 shadow-md mx-auto mb-3"
-                                          />
-                                        </div>
-                                      ) : (
-                                        <div className="w-32 h-32 bg-gray-800/50 rounded-2xl flex items-center justify-center text-xs text-gray-500 border border-gray-600/50 mx-auto mb-3">
-                                          No image
-                                        </div>
-                                      )}
-                                      <p className="text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate">
-                                        {match.wardrobe_image_description || match.wardrobe_image_object_name}
-                                      </p>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className="col-span-full text-center text-gray-500 text-lg py-8">
-                                    No wardrobe items matched for this outfit.
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
