@@ -68,7 +68,7 @@ server {
     }
 
     # ==================== Monitoring Services ====================
-    
+
     # Dozzle - Real-time Docker log viewer
     location /logs/ {
         proxy_pass http://localhost:9999/;
@@ -80,7 +80,7 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
-        
+
         # WebSocket support for real-time logs
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
@@ -98,7 +98,7 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
-        
+
         # Handle Grafana's sub-path configuration
         proxy_set_header X-Forwarded-Host \$host;
         proxy_set_header X-Forwarded-Server \$host;
@@ -112,7 +112,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
+
         # Handle Prometheus sub-path
         proxy_redirect http://localhost:9090 \$scheme://\$host/prometheus;
     }
@@ -124,7 +124,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
+
         # Optional: Restrict access to metrics endpoint
         # allow 127.0.0.1;
         # allow 10.0.0.0/8;
@@ -140,7 +140,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
+
         # Quick response for health checks
         proxy_connect_timeout 5s;
         proxy_send_timeout 5s;

@@ -34,4 +34,4 @@ echo "✅ Log permissions fixed successfully"
 
 # Show current permissions
 echo "📋 Current permissions:"
-ls -la "$LOGS_DIR" 
+ls -la "$LOGS_DIR"

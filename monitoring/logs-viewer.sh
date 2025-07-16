@@ -77,7 +77,7 @@ show_logs() {
     local service="$1"
     local lines="$2"
     local follow="$3"
-    
+
     if [[ "$follow" == "true" ]]; then
         echo -e "${GREEN}Following logs for $service...${NC}"
         docker compose logs -f --tail="$lines" "$service"
@@ -105,14 +105,14 @@ show_status() {
 # Function to rotate logs
 rotate_logs() {
     echo -e "${YELLOW}Rotating application logs...${NC}"
-    
+
     # Rotate custom application logs
     if [[ -d "./logs" ]]; then
         find ./logs -name "*.log" -size +100M -exec mv {} {}.$(date +%Y%m%d_%H%M%S) \;
         find ./logs -name "*.log.*" -mtime +7 -delete
         echo -e "${GREEN}Application logs rotated${NC}"
     fi
-    
+
     # Restart containers to start fresh logs
     echo -e "${YELLOW}Restarting containers for log cleanup...${NC}"
     docker compose restart
@@ -122,13 +122,13 @@ rotate_logs() {
 # Function to clean old logs
 clean_logs() {
     echo -e "${YELLOW}Cleaning old log files...${NC}"
-    
+
     # Clean application logs older than 7 days
     if [[ -d "./logs" ]]; then
         find ./logs -name "*.log.*" -mtime +7 -delete
         echo -e "${GREEN}Old application logs cleaned${NC}"
     fi
-    
+
     # Clean Docker logs
     docker system prune -f --volumes --filter "until=168h"
     echo -e "${GREEN}Old Docker logs and volumes cleaned${NC}"
@@ -176,4 +176,4 @@ case "${COMMAND:-help}" in
     help|*)
         show_help
         ;;
-esac 
+esac

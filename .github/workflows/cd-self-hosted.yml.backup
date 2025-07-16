@@ -10,12 +10,38 @@ jobs:
     runs-on: [self-hosted, linux, outfit-predict]
 
     steps:
+    - name: Pre-checkout permission fix
+      run: |
+        # Fix permissions for log files before checkout attempts to clean workspace
+        # This prevents "permission denied" errors during workspace cleanup
+        echo "🔧 Fixing log file permissions before checkout..."
+
+        WORKSPACE_DIR="/home/github-runner/actions-runner/_work/Outfit_predict/Outfit_predict"
+
+        if [[ -d "$WORKSPACE_DIR" ]]; then
+          echo "📁 Found existing workspace, fixing permissions..."
+
+          # Fix ownership of entire workspace to github-runner
+          sudo chown -R github-runner:github-runner "$WORKSPACE_DIR" 2>/dev/null || true
+
+          # Specifically handle logs directory if it exists
+          if [[ -d "$WORKSPACE_DIR/logs" ]]; then
+            echo "📋 Fixing logs directory permissions..."
+            sudo chown -R github-runner:github-runner "$WORKSPACE_DIR/logs"
+            sudo chmod -R u+w "$WORKSPACE_DIR/logs"
+          fi
+
+          echo "✅ Pre-checkout permission fix completed"
+        else
+          echo "ℹ️ No existing workspace found, skipping permission fix"
+        fi
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         lfs: true  # Important for model files
 
-    - name: Fix log permissions
+    - name: Post-checkout permission fix
       run: |
         # Fix permissions for log files that might be created by Docker containers
         ./devops/fix-log-permissions.sh

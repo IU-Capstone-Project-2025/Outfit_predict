@@ -1,0 +1,364 @@
+name: CD - GitHub Runners Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual deployment
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}-backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}-frontend
+
+jobs:
+  # ==================== Build and Push Images ====================
+  build:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      backend-image: ${{ steps.meta-backend.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+      backend-digest: ${{ steps.build-backend.outputs.digest }}
+      frontend-digest: ${{ steps.build-frontend.outputs.digest }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        lfs: true  # Important for model files
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata for backend
+      id: meta-backend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Extract metadata for frontend
+      id: meta-frontend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push backend image
+      id: build-backend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile
+        push: true
+        tags: ${{ steps.meta-backend.outputs.tags }}
+        labels: ${{ steps.meta-backend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push frontend image
+      id: build-frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        push: true
+        tags: ${{ steps.meta-frontend.outputs.tags }}
+        labels: ${{ steps.meta-frontend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8000' }}
+
+  # ==================== Deploy to Server ====================
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Create deployment directory structure
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          # Create deployment directories
+          mkdir -p ~/outfit-predict/{logs,backup,ssl-setup,monitoring}
+          cd ~/outfit-predict
+
+          # Create backup if deployment exists
+          if [ -f "docker-compose.yml" ]; then
+            BACKUP_DIR="backup/$(date +%Y%m%d_%H%M%S)"
+            mkdir -p "$BACKUP_DIR"
+            cp docker-compose.yml "$BACKUP_DIR/" 2>/dev/null || true
+            cp .env "$BACKUP_DIR/" 2>/dev/null || true
+            echo "Backup created in $BACKUP_DIR"
+          fi
+        EOF
+
+    - name: Copy deployment files
+      run: |
+        # Copy docker-compose and related files
+        scp docker-compose.yml ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/outfit-predict/
+        scp -r devops/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/outfit-predict/
+        scp -r monitoring/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/outfit-predict/
+        scp -r ssl-setup/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/outfit-predict/
+
+    - name: Create environment file
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          cd ~/outfit-predict
+
+          # Create .env file from secrets and template
+          cat > .env << 'ENVEOF'
+        # Database Configuration
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+        POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+        POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+
+        # Redis Configuration
+        REDIS_URL=${{ secrets.REDIS_URL }}
+
+        # MinIO Configuration
+        MINIO_ACCESS_KEY=${{ secrets.MINIO_ACCESS_KEY }}
+        MINIO_SECRET_KEY=${{ secrets.MINIO_SECRET_KEY }}
+        MINIO_ENDPOINT=${{ secrets.MINIO_ENDPOINT }}
+        MINIO_BUCKET=${{ secrets.MINIO_BUCKET }}
+
+        # FastAPI Configuration
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        ALGORITHM=${{ secrets.ALGORITHM }}
+        ACCESS_TOKEN_EXPIRE_MINUTES=${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
+
+        # Frontend Configuration
+        NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+
+        # Docker Images
+        BACKEND_IMAGE=${{ needs.build.outputs.backend-image }}
+        FRONTEND_IMAGE=${{ needs.build.outputs.frontend-image }}
+
+        # Environment
+        ENVIRONMENT=production
+        ENVEOF
+        EOF
+
+    - name: Update docker-compose with new images
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          cd ~/outfit-predict
+
+          # Update docker-compose.yml to use new images
+          sed -i "s|image: .*backend.*|image: ${{ needs.build.outputs.backend-image }}|g" docker-compose.yml
+          sed -i "s|image: .*frontend.*|image: ${{ needs.build.outputs.frontend-image }}|g" docker-compose.yml
+
+          # Also update any build contexts to use images instead
+          sed -i "s|build:.*|image: ${{ needs.build.outputs.backend-image }}|g" docker-compose.yml
+        EOF
+
+    - name: Login to registry on server
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+        EOF
+
+    - name: Deploy application
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          cd ~/outfit-predict
+
+          echo "🛑 Stopping existing services..."
+          docker compose down --remove-orphans || true
+
+          echo "🧹 Cleaning up old containers and images..."
+          docker container prune -f || true
+          docker image prune -f || true
+
+          echo "🔄 Pulling new images..."
+          docker compose pull
+
+          echo "🚀 Starting services..."
+          docker compose up -d
+
+          echo "✅ Deployment completed"
+        EOF
+
+    - name: Wait for services to start
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          cd ~/outfit-predict
+
+          echo "⏳ Waiting for services to be ready..."
+          sleep 60
+
+          # Show running containers
+          echo "🐳 Running containers:"
+          docker compose ps
+        EOF
+
+    - name: Health checks
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          cd ~/outfit-predict
+
+          echo "🏥 Performing health checks..."
+
+          # Function to check service with retries
+          check_service() {
+            local url=$1
+            local service_name=$2
+            local max_attempts=10
+            local attempt=1
+
+            while [ $attempt -le $max_attempts ]; do
+              if curl -f "$url" > /dev/null 2>&1; then
+                echo "✅ $service_name is healthy"
+                return 0
+              fi
+              echo "⏳ $service_name not ready, attempt $attempt/$max_attempts..."
+              sleep 10
+              attempt=$((attempt + 1))
+            done
+
+            echo "❌ $service_name health check failed after $max_attempts attempts"
+            return 1
+          }
+
+          # Check frontend
+          check_service "http://localhost:3000" "Frontend"
+
+          # Check backend
+          if ! check_service "http://localhost:8000/health" "Backend (health endpoint)"; then
+            # Fallback to root endpoint
+            check_service "http://localhost:8000" "Backend (root endpoint)"
+          fi
+
+          # Check API docs
+          if curl -f "http://localhost:8000/docs" > /dev/null 2>&1; then
+            echo "✅ Backend API documentation is accessible"
+          fi
+        EOF
+
+    - name: Deployment summary
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          cd ~/outfit-predict
+
+          echo "📊 Deployment Summary"
+          echo "===================="
+
+          echo "🐳 Running containers:"
+          docker compose ps
+
+          echo ""
+          echo "🏷️ Deployed Images:"
+          echo "Backend: ${{ needs.build.outputs.backend-image }}"
+          echo "Frontend: ${{ needs.build.outputs.frontend-image }}"
+
+          echo ""
+          echo "🌐 Service URLs:"
+          echo "• Frontend: http://localhost:3000"
+          echo "• Backend API: http://localhost:8000"
+          echo "• API Docs: http://localhost:8000/docs"
+          echo "• MinIO Console: http://localhost:9001"
+          echo ""
+          echo "📊 Monitoring URLs:"
+          echo "• Logs: http://localhost:9999"
+          echo "• Grafana: http://localhost:3001"
+          echo "• Prometheus: http://localhost:9090"
+
+          echo ""
+          echo "💾 Disk usage:"
+          df -h / | tail -1
+
+          echo ""
+          echo "🧠 Memory usage:"
+          free -h
+        EOF
+
+    - name: Cleanup
+      if: always()
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          # Logout from registry
+          docker logout ${{ env.REGISTRY }} || true
+
+          # Clean up old images (keep last 3 versions)
+          docker images --format "table {{.Repository}}:{{.Tag}}\t{{.CreatedAt}}" | \
+            grep "${{ env.REGISTRY }}/${{ github.repository }}" | \
+            tail -n +4 | \
+            awk '{print $1}' | \
+            xargs -r docker rmi || true
+        EOF
+
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          cd ~/outfit-predict
+
+          echo "❌ Deployment failed, attempting rollback..."
+
+          # Find latest backup
+          LATEST_BACKUP=$(ls -t backup/ | head -1)
+
+          if [ -n "$LATEST_BACKUP" ] && [ -d "backup/$LATEST_BACKUP" ]; then
+            echo "🔄 Restoring from backup: $LATEST_BACKUP"
+
+            # Restore configuration files
+            cp "backup/$LATEST_BACKUP/docker-compose.yml" . 2>/dev/null || true
+            cp "backup/$LATEST_BACKUP/.env" . 2>/dev/null || true
+
+            # Restart with old configuration
+            docker compose down || true
+            docker compose up -d || true
+
+            echo "✅ Rollback completed"
+          else
+            echo "⚠️ No backup found for rollback"
+          fi
+        EOF
+
+    - name: Send notification
+      if: always()
+      run: |
+        if [[ "${{ job.status }}" == "success" ]]; then
+          echo "🎉 Deployment completed successfully!"
+          echo "Backend Image: ${{ needs.build.outputs.backend-image }}"
+          echo "Frontend Image: ${{ needs.build.outputs.frontend-image }}"
+        else
+          echo "💥 Deployment failed!"
+        fi
+
+        # You can add Slack/Discord/email notifications here
+        # Example: curl -X POST -H 'Content-type: application/json' \
+        #   --data '{"text":"Deployment ${{ job.status }} for commit ${{ github.sha }}"}' \
+        #   ${{ secrets.SLACK_WEBHOOK }}

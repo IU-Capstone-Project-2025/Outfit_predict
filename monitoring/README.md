@@ -21,14 +21,14 @@ This directory contains the monitoring setup for the OutfitPredict application, 
    ```
 
 2. **Access monitoring interfaces:**
-   
+
    **Direct Access (Development):**
    - **Dozzle (Logs)**: http://localhost:9999 - Real-time container logs
    - **Grafana (Dashboards)**: http://localhost:3001 - Metrics and visualizations
      - Username: `admin`
      - Password: `admin123` (or from GRAFANA_PASSWORD env var)
    - **Prometheus**: http://localhost:9090 - Raw metrics and targets
-   
+
    **Production Access (via Nginx proxy):**
    - **Dozzle (Logs)**: https://your-domain.com/logs/
    - **Grafana (Dashboards)**: https://your-domain.com/grafana/
@@ -124,10 +124,10 @@ To enable application-level metrics in your backend:
 1. **Add Prometheus metrics to your FastAPI app:**
    ```python
    from prometheus_client import Counter, Histogram, generate_latest
-   
+
    REQUEST_COUNT = Counter('app_requests_total', 'Total app requests', ['method', 'endpoint'])
    REQUEST_DURATION = Histogram('app_request_duration_seconds', 'Request duration')
-   
+
    @app.get("/metrics")
    async def metrics():
        return Response(generate_latest(), media_type="text/plain")
@@ -192,4 +192,4 @@ To enable application-level metrics in your backend:
 2. **Set up alerting rules** for critical system events
 3. **Add application-specific metrics** to the backend
 4. **Configure log aggregation** for better search capabilities
-5. **Set up automated backup** of Grafana dashboards and Prometheus data 
+5. **Set up automated backup** of Grafana dashboards and Prometheus data
