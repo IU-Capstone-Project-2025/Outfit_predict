@@ -132,6 +132,11 @@ jobs:
         echo "• Backend API: http://localhost:8000"
         echo "• API Docs: http://localhost:8000/docs"
         echo "• MinIO Console: http://localhost:9001"
+        echo ""
+        echo "📊 Monitoring URLs:"
+        echo "• Dozzle (Logs): http://localhost:9999"
+        echo "• Grafana (Dashboards): http://localhost:3001"
+        echo "• Prometheus (Metrics): http://localhost:9090"
 
         # Show disk usage
         echo ""
