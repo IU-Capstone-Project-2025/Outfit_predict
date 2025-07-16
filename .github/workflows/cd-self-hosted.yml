@@ -25,7 +25,7 @@ jobs:
 
         # Verify Docker is accessible
         docker --version
-        docker-compose --version
+        docker compose version
 
     - name: Create backup
       run: |
@@ -34,7 +34,7 @@ jobs:
         mkdir -p "$BACKUP_DIR"
 
         # Create backup if containers exist
-        if docker-compose ps | grep -q "Up\|Exited" 2>/dev/null; then
+        if docker compose ps | grep -q "Up\|Exited" 2>/dev/null; then
           echo "📦 Creating backup..."
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
           BACKUP_PATH="$BACKUP_DIR/outfit_backup_$TIMESTAMP"
@@ -53,7 +53,7 @@ jobs:
     - name: Stop existing services
       run: |
         echo "🛑 Stopping existing services..."
-        docker-compose down || true
+        docker compose down || true
 
         # Clean up any orphaned containers
         docker container prune -f || true
@@ -63,10 +63,10 @@ jobs:
         echo "🔨 Building and deploying application..."
 
         # Build with no cache to ensure fresh build
-        docker-compose build --no-cache
+        docker compose build --no-cache
 
         # Start services
-        docker-compose up -d
+        docker compose up -d
 
         echo "✅ Services started"
 
@@ -121,7 +121,7 @@ jobs:
 
         # Show running containers
         echo "🐳 Running containers:"
-        docker-compose ps
+        docker compose ps
 
         echo ""
         echo "🌐 Service URLs:"
@@ -169,8 +169,8 @@ jobs:
             cp "$BACKUP_PATH/.env" . 2>/dev/null || true
 
             # Restart with old configuration
-            docker-compose down || true
-            docker-compose up -d || true
+            docker compose down || true
+            docker compose up -d || true
 
             echo "✅ Rollback completed"
           fi
