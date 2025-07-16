@@ -133,10 +133,16 @@ jobs:
         echo "• API Docs: http://localhost:8000/docs"
         echo "• MinIO Console: http://localhost:9001"
         echo ""
-        echo "📊 Monitoring URLs:"
+        echo "📊 Monitoring URLs (Direct):"
         echo "• Dozzle (Logs): http://localhost:9999"
         echo "• Grafana (Dashboards): http://localhost:3001"
         echo "• Prometheus (Metrics): http://localhost:9090"
+        echo ""
+        echo "🌐 Monitoring URLs (Nginx Proxy):"
+        echo "• Logs: https://your-domain.com/logs/"
+        echo "• Dashboards: https://your-domain.com/grafana/"
+        echo "• Metrics: https://your-domain.com/prometheus/"
+        echo "• Health: https://your-domain.com/health"
 
         # Show disk usage
         echo ""

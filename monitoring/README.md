@@ -6,12 +6,12 @@ This directory contains the monitoring setup for the OutfitPredict application, 
 
 ### Services Overview
 
-| Service | Port | Purpose | Access |
-|---------|------|---------|--------|
-| **Dozzle** | 9999 | Real-time Docker log viewer | http://localhost:9999 |
-| **Grafana** | 3001 | Metrics dashboards and visualization | http://localhost:3001 |
-| **Prometheus** | 9090 | Metrics collection and storage | http://localhost:9090 |
-| **Node Exporter** | 9100 | System metrics collection | http://localhost:9100/metrics |
+| Service | Port | Purpose | Direct Access | Nginx Proxy |
+|---------|------|---------|---------------|-------------|
+| **Dozzle** | 9999 | Real-time Docker log viewer | http://localhost:9999 | https://your-domain.com/logs/ |
+| **Grafana** | 3001 | Metrics dashboards and visualization | http://localhost:3001 | https://your-domain.com/grafana/ |
+| **Prometheus** | 9090 | Metrics collection and storage | http://localhost:9090 | https://your-domain.com/prometheus/ |
+| **Node Exporter** | 9100 | System metrics collection | http://localhost:9100/metrics | https://your-domain.com/metrics |
 
 ### 🚀 Quick Start
 
@@ -21,11 +21,20 @@ This directory contains the monitoring setup for the OutfitPredict application, 
    ```
 
 2. **Access monitoring interfaces:**
+   
+   **Direct Access (Development):**
    - **Dozzle (Logs)**: http://localhost:9999 - Real-time container logs
    - **Grafana (Dashboards)**: http://localhost:3001 - Metrics and visualizations
      - Username: `admin`
      - Password: `admin123` (or from GRAFANA_PASSWORD env var)
    - **Prometheus**: http://localhost:9090 - Raw metrics and targets
+   
+   **Production Access (via Nginx proxy):**
+   - **Dozzle (Logs)**: https://your-domain.com/logs/
+   - **Grafana (Dashboards)**: https://your-domain.com/grafana/
+   - **Prometheus**: https://your-domain.com/prometheus/
+   - **System Metrics**: https://your-domain.com/metrics
+   - **Health Check**: https://your-domain.com/health
 
 3. **Use the log viewer script:**
    ```bash

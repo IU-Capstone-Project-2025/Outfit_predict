@@ -111,6 +111,10 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
       GF_USERS_ALLOW_SIGN_UP: false
+      # Sub-path configuration for nginx proxying
+      GF_SERVER_DOMAIN: ${DOMAIN:-localhost}
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: true
     networks: [api-net]
     restart: unless-stopped
     depends_on:
