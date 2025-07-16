@@ -152,49 +152,19 @@ export default function OutfitGeneratorMain() {
     if (!user) {
       return;
     }
-    let imagesToSend: File[] = files
-    // If no files uploaded, use wardrobe images
-    if (imagesToSend.length === 0 && wardrobeImages.length > 0) {
-      setLoadingRecommendations(true)
-      setRecommendationError(null)
-      try {
-        const blobs = await Promise.all(
-          wardrobeImages.map(async (img: any, idx: number) => {
-            const res = await fetch(img.url, {
-              headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
-            })
-            const blob = await res.blob()
-            return new File([blob], img.description || `wardrobe_${idx}.jpg`, { type: blob.type })
-          })
-        )
-        imagesToSend = blobs
-      } catch (err) {
-        setRecommendationError("Failed to load wardrobe images for outfit generation.")
-        setLoadingRecommendations(false)
-        return
-      }
-    }
-    if (imagesToSend.length === 0) {
-      showUploadMessage("Please upload at least one image to your profile.")
-      return
-    }
     setLoadingRecommendations(true)
     setRecommendationError(null)
     try {
-      const formData = new FormData()
-      imagesToSend.forEach((file) => formData.append("files", file))
+      // 1. Call the backend to generate recommendations
       const response = await fetch(apiUrl('v1/outfits/search-similar/'), {
         method: "POST",
-        body: formData,
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       })
       if (!response.ok) throw new Error("Failed to generate outfits")
       const recs = await response.json()
-      // Fetch all wardrobe images
+      // 2. Fetch all wardrobe images
       const imagesRes = await fetch(apiUrl('v1/images/'), {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -202,11 +172,11 @@ export default function OutfitGeneratorMain() {
       })
       if (!imagesRes.ok) throw new Error("Failed to fetch profile images")
       const images = await imagesRes.json()
-      // Attach wardrobe image URLs to recommendations
+      // 3. Attach wardrobe image URLs to recommendations
       const recsWithUrls = recs.map((rec: any) => {
         const matchesSrc = rec.recommendation?.matches || [];
         const matchesWithUrls = matchesSrc.map((match: any) => {
-          const wardrobeImage = images.find((img: any) => img.object_name === match.wardrobe_image_object_name || img.id === match.wardrobe_image_id)
+          const wardrobeImage = images.find((img: any) => img.object_name === match.wardrobe_image_object_name)
           return {
             ...match,
             wardrobe_image_url: wardrobeImage?.url,
@@ -225,7 +195,7 @@ export default function OutfitGeneratorMain() {
     } finally {
       setLoadingRecommendations(false)
     }
-  }, [files, wardrobeImages, showUploadMessage, token, user])
+  }, [showUploadMessage, token, user])
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
