@@ -1,14 +1,19 @@
-import requests
-from typing import List
+import os
+from typing import List, Optional
+
+import requests  # type: ignore
 
 GOOGLE_API_URL = "https://www.googleapis.com/customsearch/v1"
 
 # Для работы нужны GOOGLE API_KEY и CX (идентификатор поискового движка)
-import os
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GOOGLE_CX = os.getenv("GOOGLE_CX")
 
-def search_images_google(query: str, api_key: str = None, cx: str = None, num: int = 5) -> List[str]:
+
+def search_images_google(
+    query: str, api_key: Optional[str] = None, cx: Optional[str] = None, num: int = 5
+) -> List[str]:
     """
     Search for images using Google Custom Search API by text query.
     Returns a list of image URLs.
@@ -17,14 +22,8 @@ def search_images_google(query: str, api_key: str = None, cx: str = None, num: i
     cx = cx or GOOGLE_CX
     if not api_key or not cx:
         raise ValueError("Google API key and CX must be set.")
-    params = {
-        "q": query,
-        "searchType": "image",
-        "key": api_key,
-        "cx": cx,
-        "num": num
-    }
+    params = {"q": query, "searchType": "image", "key": api_key, "cx": cx, "num": num}
     response = requests.get(GOOGLE_API_URL, params=params)
     response.raise_for_status()
     data = response.json()
-    return [item["link"] for item in data.get("items", [])] 
+    return [item["link"] for item in data.get("items", [])]

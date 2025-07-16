@@ -6,9 +6,9 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from app.ml.encoding_models import DinoV2ImageEncoder
-from ultralytics import SAM, YOLO
 from app.ml.image_captioning import generate_caption
 from PIL import Image as PILImage
+from ultralytics import SAM, YOLO
 
 try:
     if os.path.exists("app/ml/best.pt"):
@@ -655,12 +655,14 @@ class FashionSegmentationModel:
             segment_img = cv2.cvtColor(result_img, cv2.COLOR_RGBA2RGB)
             pil_img = PILImage.fromarray(segment_img)
             caption_dict = generate_caption(pil_img)
-            results.append({
-                "image": segment_img,
-                "class_name": class_name,
-                "caption": caption_dict.get("caption"),
-                "short_caption": caption_dict.get("short_caption"),
-            })
+            results.append(
+                {
+                    "image": segment_img,
+                    "class_name": class_name,
+                    "caption": caption_dict.get("caption"),
+                    "short_caption": caption_dict.get("short_caption"),
+                }
+            )
         return results
 
 

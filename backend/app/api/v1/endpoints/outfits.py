@@ -197,17 +197,13 @@ async def get_outfit_file(
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
 
-    try:
-        # Verify user owns this outfit
-        outfit = await outfit_crud.get_outfit_by_object_name(
-            db, object_name, current_user.id
-        )
-        if not outfit:
-            logger.warning(
-                f"Outfit file {object_name} not found for user {current_user.email}"
-            )
-            raise HTTPException(status_code=404, detail="Outfit not found")
+    # At this point we know the outfit exists in the database. Since outfit images
+    # are meant to be shared across all users (e.g. when the recommender suggests
+    # an outfit created by someone else), we intentionally do NOT check
+    # for ownership here. Only authentication is required, ensured by
+    # the `get_current_user` dependency above.
 
+    try:
         logger.debug(f"Retrieving outfit file from MinIO: {object_name}")
         obj = minio.get_stream(object_name)
 
@@ -311,11 +307,44 @@ async def search_similar_outfits(
         logger.info(
             f"Found {len(recommended_outfits)} similar outfit recommendations for user {current_user.email}"
         )
+        # Log completeness scores of recommended outfits for debugging
         logger.debug(
-            f"Recommendation details: {[r.get('completeness_score', 0) for r in recommended_outfits]}"
+            f"Recommendation details: {[r.completeness_score for r in recommended_outfits]}"
         )
 
-        return recommended_outfits
+        # Convert to frontend-expected format
+        result = []
+        for rec in recommended_outfits:
+            try:
+                outfit = await outfit_crud.get_outfit_by_id_any(db, UUID(rec.outfit_id))
+                if not outfit:
+                    logger.warning(f"Outfit {rec.outfit_id} not found in database")
+                    continue
+
+                outfit_url = build_url(
+                    request, "get_outfit_file", object_name=outfit.object_name
+                )
+
+                result.append(
+                    {
+                        "outfit": {
+                            "id": str(outfit.id),
+                            "url": outfit_url,
+                            "object_name": outfit.object_name,
+                            "created_at": outfit.created_at.isoformat(),
+                        },
+                        "recommendation": {
+                            "completeness_score": rec.completeness_score,
+                            "matches": [match.model_dump() for match in rec.matches],
+                        },
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Error processing outfit {rec.outfit_id}: {str(e)}")
+                continue
+
+        logger.info(f"Returning {len(result)} formatted outfit recommendations")
+        return result
 
     except HTTPException:
         raise

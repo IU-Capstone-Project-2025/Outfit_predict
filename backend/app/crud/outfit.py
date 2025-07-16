@@ -60,6 +60,12 @@ async def get_outfit_by_object_name_any(
     return res.scalar_one_or_none()
 
 
+async def get_outfit_by_id_any(db: AsyncSession, outfit_id: UUID) -> Outfit | None:
+    """Get outfit by ID without filtering by user ownership."""
+    res = await db.execute(select(Outfit).where(Outfit.id == outfit_id))
+    return res.scalar_one_or_none()
+
+
 async def delete_outfit(
     db: AsyncSession, outfit_id: UUID, user_id: uuid.UUID
 ) -> Outfit | None:
