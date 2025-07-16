@@ -17,9 +17,12 @@ jobs:
 
     - name: Set up environment
       run: |
-        # Ensure we have the latest environment
-        if [[ ! -f ".env" ]]; then
-          echo "❌ .env file not found! Please create it from devops/env.production.template"
+        # Copy persistent .env file from runner home
+        if [[ -f "$HOME/.env" ]]; then
+          cp "$HOME/.env" .env
+          echo "✅ .env file copied from persistent location"
+        else
+          echo "❌ .env file not found in $HOME! Please create it from devops/env.production.template"
           exit 1
         fi
 
