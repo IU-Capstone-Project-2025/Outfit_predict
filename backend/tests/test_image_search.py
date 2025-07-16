@@ -1,19 +1,83 @@
 from unittest.mock import MagicMock, patch
 
-from app.ml.image_search import search_similar_images
+import numpy as np
+from app.ml.image_search import ImageSearchEngine
+from PIL import Image
 
 
-def test_search_similar_images_success():
-    with patch("app.ml.image_search.CLIP") as mock_clip:
-        mock_model = MagicMock()
-        mock_clip.load.return_value = mock_model
-        mock_model.encode_image.return_value = [0.1, 0.2]
-        mock_model.encode_text.return_value = [0.1, 0.2]
-        result = search_similar_images("fake_path", ["desc1", "desc2"])
-        assert isinstance(result, list)
+def test_image_search_engine_initialization():
+    """Test that ImageSearchEngine initializes properly with DINO V2."""
+    with patch("app.ml.image_search.DinoV2ImageEncoder") as mock_encoder:
+        mock_encoder_instance = MagicMock()
+        mock_encoder.return_value = mock_encoder_instance
+        mock_encoder_instance.device = "cpu"
+
+        engine = ImageSearchEngine()
+
+        assert engine.encoder == mock_encoder_instance
+        mock_encoder.assert_called_once_with(model_name="dinov2_vitb14")
 
 
-def test_search_similar_images_failure():
-    with patch("app.ml.image_search.CLIP", side_effect=Exception("fail")):
-        result = search_similar_images("fake_path", ["desc1"])
-        assert result == []
+def test_get_image_embeddings_success():
+    """Test successful embedding generation."""
+    with patch("app.ml.image_search.DinoV2ImageEncoder") as mock_encoder:
+        mock_encoder_instance = MagicMock()
+        mock_encoder.return_value = mock_encoder_instance
+
+        # Mock the encoder to return test embeddings
+        test_embeddings = np.array([[0.1, 0.2, 0.3]])
+        mock_encoder_instance.encode.return_value = test_embeddings
+
+        engine = ImageSearchEngine()
+
+        # Create a mock PIL image
+        mock_image = MagicMock(spec=Image.Image)
+
+        result = engine.get_image_embeddings(mock_image)
+
+        # Verify the result
+        np.testing.assert_array_equal(result, test_embeddings)
+        mock_encoder_instance.encode.assert_called_once_with(
+            [mock_image], batch_size=32
+        )
+
+
+def test_get_image_embeddings_multiple_images():
+    """Test embedding generation for multiple images."""
+    with patch("app.ml.image_search.DinoV2ImageEncoder") as mock_encoder:
+        mock_encoder_instance = MagicMock()
+        mock_encoder.return_value = mock_encoder_instance
+
+        # Mock the encoder to return test embeddings for multiple images
+        test_embeddings = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+        mock_encoder_instance.encode.return_value = test_embeddings
+
+        engine = ImageSearchEngine()
+
+        # Create mock PIL images
+        mock_images = [MagicMock(spec=Image.Image), MagicMock(spec=Image.Image)]
+
+        result = engine.get_image_embeddings(mock_images, batch_size=16)
+
+        # Verify the result
+        np.testing.assert_array_equal(result, test_embeddings)
+        mock_encoder_instance.encode.assert_called_once_with(mock_images, batch_size=16)
+
+
+def test_get_image_embeddings_failure():
+    """Test handling of embedding generation failure."""
+    with patch("app.ml.image_search.DinoV2ImageEncoder") as mock_encoder:
+        mock_encoder_instance = MagicMock()
+        mock_encoder.return_value = mock_encoder_instance
+
+        # Mock the encoder to raise an exception
+        mock_encoder_instance.encode.side_effect = Exception("DINO V2 encoding failed")
+
+        engine = ImageSearchEngine()
+        mock_image = MagicMock(spec=Image.Image)
+
+        try:
+            engine.get_image_embeddings(mock_image)
+            assert False, "Expected exception was not raised"
+        except Exception as e:
+            assert str(e) == "DINO V2 encoding failed"

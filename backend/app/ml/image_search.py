@@ -1,9 +1,8 @@
 from typing import List, Tuple, Union
 
-import clip
 import numpy as np
-import torch
 from app.core.logging import get_logger
+from app.ml.encoding_models import DinoV2ImageEncoder
 from app.schemas.outfit import MatchedItem, RecommendedOutfit
 from app.storage.qdrant_client import QdrantService
 from PIL import Image
@@ -14,32 +13,24 @@ logger = get_logger("app.ml.image_search")
 
 class ImageSearchEngine:
     """
-    Class represents an engine for searching for similar images using CLIP and Qdrant
+    Class represents an engine for searching for similar images using DINO V2 and Qdrant
     """
 
-    def __init__(self, model_name: str = "ViT-B/32"):
+    def __init__(self, model_name: str = "dinov2_vitb14"):
         """Initialization of search engine with model indication
 
         Args:
-            model_name (str): CLIP model name (by default, 'ViT-B/32')
+            model_name (str): DINO V2 model name (by default, 'dinov2_vitb14')
         """
         logger.info(f"Initializing ImageSearchEngine with model: {model_name}")
 
         try:
-            # Load clip model
-            logger.debug("Loading CLIP model...")
-            self.model, self.preprocess = clip.load(model_name)
-
-            # Move model to GPU if available
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            logger.info(f"Using device: {self.device}")
-
-            self.model = self.model.to(self.device)
-            # Set model to evaluation mode
-            self.model.eval()
+            # Initialize DINO V2 encoder
+            logger.debug("Loading DINO V2 model...")
+            self.encoder = DinoV2ImageEncoder(model_name=model_name)
 
             logger.info(
-                f"ImageSearchEngine initialized successfully with {model_name} on {self.device}"
+                f"ImageSearchEngine initialized successfully with {model_name} on {self.encoder.device}"
             )
 
         except Exception as e:
@@ -50,7 +41,7 @@ class ImageSearchEngine:
         self, images: Union[Image.Image, List[Image.Image]], batch_size: int = 32
     ) -> np.ndarray:
         """
-        Create embeddings for images using CLIP model
+        Create embeddings for images using DINO V2 model
 
         Args:
             images: Single PIL Image or list of PIL Images to create embeddings for
@@ -72,40 +63,15 @@ class ImageSearchEngine:
         )
 
         try:
-            all_embeddings = []
+            # Use DINO V2 encoder to generate embeddings
+            embeddings = self.encoder.encode(images, batch_size=batch_size)
 
-            # Process images in batches
-            for i in range(0, len(images), batch_size):
-                batch_images = images[i : i + batch_size]
-                logger.debug(
-                    f"Processing batch {i//batch_size + 1}/{(len(images) + batch_size - 1)//batch_size}"
-                    f"with {len(batch_images)} images"
-                )
+            # Ensure we return a 2D array even for single images
+            if embeddings.ndim == 1:
+                embeddings = embeddings.reshape(1, -1)
 
-                # Preprocess all images in the batch
-                image_tensors = []
-                for image in batch_images:
-                    image_tensor = self.preprocess(image)
-                    image_tensors.append(image_tensor)
-
-                # Stack tensors and move to device
-                batch_tensor = torch.stack(image_tensors).to(self.device)
-
-                # Get embeddings for the batch
-                with torch.no_grad():
-                    batch_embeddings = self.model.encode_image(batch_tensor)
-                    # Move to CPU and convert to numpy
-                    batch_embeddings = batch_embeddings.cpu().numpy()
-                    all_embeddings.append(batch_embeddings)
-
-            # Concatenate all batch results
-            if all_embeddings:
-                result = np.vstack(all_embeddings)
-                logger.info(f"Successfully generated embeddings: shape {result.shape}")
-                return result
-            else:
-                logger.warning("No embeddings generated")
-                return np.array([])
+            logger.info(f"Successfully generated embeddings: shape {embeddings.shape}")
+            return embeddings
 
         except Exception as e:
             logger.error(f"Error generating embeddings: {str(e)}")
@@ -119,7 +85,7 @@ class ImageSearchEngine:
         score_threshold: float = 0.7,
     ) -> List[Tuple[str, float]]:
         """
-        Find similar images using CLIP embeddings and Qdrant vector search.
+        Find similar images using DINO V2 embeddings and Qdrant vector search.
 
         Args:
             image: PIL Image to find similar images for

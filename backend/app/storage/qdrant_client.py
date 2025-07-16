@@ -40,7 +40,7 @@ class QdrantService:
                 self.client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=models.VectorParams(
-                        size=512,  # CLIP ViT-B/32 embedding size
+                        size=768,  # DINO V2 ViT-B/14 embedding size
                         distance=models.Distance.COSINE,
                     ),
                 )

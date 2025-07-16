@@ -1,7 +1,5 @@
 from typing import List, Optional, Union
 
-import clip
-import cv2
 import numpy as np
 import torch
 from PIL import Image
@@ -84,6 +82,8 @@ class DinoV2ImageEncoder:
         """
         if isinstance(image_input, str):
             image = Image.open(image_input)
+        else:
+            image = image_input
         image = image.convert("RGB")
 
         return self.transform(image)
@@ -137,132 +137,3 @@ class DinoV2ImageEncoder:
             return final_embeddings.squeeze(0)
         else:
             return final_embeddings
-
-
-class ClipEncoder:
-    """
-    A high-performance embedding generator using OpenAI's CLIP models.
-    Efficiently converts images and texts into semantic vector representations.
-
-    Attributes:
-        model (torch.nn.Module): Pre-trained CLIP model
-        preprocess (callable): Image preprocessing pipeline
-        device (torch.device): Computation device
-    """
-
-    def __init__(self, clip_model_name: str = "ViT-B/32", device: str = ""):
-        """
-        Initialize CLIP model and preprocessing pipeline.
-
-        Args:
-            clip_model_name (str): CLIP model variant (default: "ViT-B/32")
-            device (str): Hardware device for computation
-        """
-        # Load CLIP model and preprocessing
-        self.model, self.preprocess = clip.load(clip_model_name)
-
-        # Configure device
-        self.device = device.lower()
-        if not self.device:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        # Move model to device
-        self.model = self.model.to(self.device)
-        self.model.eval()
-
-    def get_image_embeddings(
-        self,
-        images: Union[Image.Image, np.ndarray, List[Union[Image.Image, np.ndarray]]],
-        batch_size: int = 32,
-    ) -> np.ndarray:
-        """
-        Generate embeddings for input images with efficient batch processing.
-
-        Args:
-            images: Single PIL.Image or list of PIL.Images
-            batch_size: Processing batch size (optimize based on GPU memory)
-
-        Returns:
-            np.ndarray: Embedding matrix of shape (n_images, embedding_dim)
-
-        Note: Embeddings are L2-normalized per CLIP's standard practice
-        """
-        # Normalize input to list
-        if isinstance(images, Image.Image):
-            images = [images]
-        if isinstance(images, np.ndarray):
-            images = [images]
-
-        # Handle empty input
-        if len(images) == 0:
-            return np.array([])
-
-        image_embeddings = []
-
-        # Batch processing loop
-        for i in range(0, len(images), batch_size):
-            batch = images[i : i + batch_size]
-            batch_tensors = []
-
-            for img in batch:
-                # Convert cv2 image (BGR) to PIL Image (RGB)
-                if isinstance(img, np.ndarray):
-                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                    img = Image.fromarray(img)
-
-                # Preprocess image
-                img_tensor = self.preprocess(img)
-                batch_tensors.append(img_tensor)
-            # Stack tensors and move to device
-            batch_tensors = torch.stack(batch_tensors).to(self.device)
-            # Generate embeddings
-            with torch.no_grad():
-                batch_embeds = self.model.encode_image(batch_tensors)
-                batch_embeds /= batch_embeds.norm(
-                    dim=-1, keepdim=True
-                )  # L2 normalization
-                image_embeddings.append(batch_embeds.cpu().numpy())
-        # Combine all batch results
-        return np.vstack(image_embeddings)
-
-    def get_texts_embeddings(
-        self,
-        texts: Union[str, List[str]],
-        batch_size: int = 128,
-        context_length: int = 77,
-    ) -> np.ndarray:
-        """
-            Generate embeddings for input text with efficient batch processing.
-
-        Args:
-            texts: Input string or list of strings
-            batch_size: Text processing batch size (typically larger than image batches)
-            context_length: Override default token limit (77 tokens)
-
-        Returns:
-            L2-normalized embeddings as numpy array (n_texts, embedding_dim)
-        """
-        # Input normalization
-        texts = [texts] if isinstance(texts, str) else texts
-        if not texts:
-            return np.array([])
-
-        # Use model's context length if not specified
-        context_length = context_length
-
-        embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-
-            # Tokenize with truncation
-            batch_tokens = clip.tokenize(
-                batch, truncate=True, context_length=context_length
-            ).to(self.device)
-
-            # Generate embeddings
-            with torch.no_grad():
-                batch_embeds = self.model.encode_text(batch_tokens)
-                batch_embeds /= batch_embeds.norm(dim=-1, keepdim=True)
-                embeddings.append(batch_embeds.cpu().numpy())
-
-        return np.vstack(embeddings)
