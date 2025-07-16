@@ -8,6 +8,7 @@ import { getApiBaseUrl, apiUrl } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { ImagePreviewModal, ProtectedImage } from "@/components/ImagePreviewModal";
 
 export default function OutfitGeneratorMain() {
   const [files, setFiles] = useState<File[]>([])
@@ -23,6 +24,11 @@ export default function OutfitGeneratorMain() {
   const [wardrobeLoading, setWardrobeLoading] = useState(true)
   const { user, loading } = useAuth()
   const router = useRouter()
+  const [previewImage, setPreviewImage] = useState<{
+    src: string;
+    alt?: string;
+    description?: string;
+  } | null>(null);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
 
@@ -226,6 +232,16 @@ export default function OutfitGeneratorMain() {
 
       <Header />
 
+      {/* Image Preview Modal rendered at the top level, outside recommendations modal overlay */}
+      <ImagePreviewModal
+        open={!!previewImage}
+        onClose={() => setPreviewImage(null)}
+        src={previewImage?.src || ""}
+        alt={previewImage?.alt}
+        description={previewImage?.description}
+        token={token}
+      />
+
       <div className="relative z-10 container mx-auto px-4 py-12">
         {!user ? (
           <div className="text-center text-xl text-gray-300 py-24">
@@ -362,7 +378,10 @@ export default function OutfitGeneratorMain() {
             {showRecommendations && recommendations && (
               <div
                 className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                onClick={() => setShowRecommendations(false)}
+                onClick={() => {
+                  // Only close recommendations modal if preview is not open
+                  if (!previewImage) setShowRecommendations(false);
+                }}
               >
                 <div
                   className="bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-10 max-w-6xl w-full max-h-[90vh] overflow-auto shadow-2xl relative"
@@ -393,14 +412,22 @@ export default function OutfitGeneratorMain() {
                         <div key={idx} className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/30">
                           <div className="flex flex-col lg:flex-row gap-10 items-center">
                             <div className="relative">
-                              <ProtectedImage
-                                src={rec.outfit.url || "/placeholder.svg"}
-                                alt="Generated Outfit"
-                                token={token}
-                                className="w-72 h-72 object-cover rounded-3xl border border-gray-600/50 shadow-lg"
-                              />
-                              <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
-                                <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
+                              <div
+                                className="cursor-pointer"
+                                onClick={() => setPreviewImage({
+                                  src: rec.outfit.url || "/placeholder.svg",
+                                  alt: `Generated Outfit #${idx + 1}`
+                                })}
+                              >
+                                <ProtectedImage
+                                  src={rec.outfit.url || "/placeholder.svg"}
+                                  alt="Generated Outfit"
+                                  token={token}
+                                  className="w-72 h-72 object-cover rounded-3xl border border-gray-600/50 shadow-lg"
+                                />
+                                <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
+                                  <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
+                                </div>
                               </div>
                             </div>
 
@@ -411,12 +438,21 @@ export default function OutfitGeneratorMain() {
                                   rec.matchesWithUrls.map((match: any, i: number) => (
                                     <div key={i} className="text-center">
                                       {match.wardrobe_image_url ? (
-                                        <ProtectedImage
-                                          src={match.wardrobe_image_url || "/placeholder.svg"}
-                                          alt={match.wardrobe_image_description || "Wardrobe item"}
-                                          token={token}
-                                          className="w-32 h-32 object-cover rounded-2xl border border-gray-600/50 shadow-md mx-auto mb-3"
-                                        />
+                                        <div
+                                          className="cursor-pointer"
+                                          onClick={() => setPreviewImage({
+                                            src: match.wardrobe_image_url,
+                                            alt: match.wardrobe_image_description || "Wardrobe item",
+                                            description: match.wardrobe_image_description
+                                          })}
+                                        >
+                                          <ProtectedImage
+                                            src={match.wardrobe_image_url || "/placeholder.svg"}
+                                            alt={match.wardrobe_image_description || "Wardrobe item"}
+                                            token={token}
+                                            className="w-32 h-32 object-cover rounded-2xl border border-gray-600/50 shadow-md mx-auto mb-3"
+                                          />
+                                        </div>
                                       ) : (
                                         <div className="w-32 h-32 bg-gray-800/50 rounded-2xl flex items-center justify-center text-xs text-gray-500 border border-gray-600/50 mx-auto mb-3">
                                           No image
@@ -447,48 +483,4 @@ export default function OutfitGeneratorMain() {
       </div>
     </div>
   )
-}
-
-function ProtectedImage({ src, alt, token, ...props }: { src: string, alt: string, token: string | null } & React.ImgHTMLAttributes<HTMLImageElement>) {
-  const [imgUrl, setImgUrl] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    let isMounted = true;
-    if (!src) return;
-
-    // Determine if this src points to the protected backend API.
-    const apiBase = getApiBaseUrl();
-    const isProtectedApi = src.startsWith("/api") || src.startsWith(`${apiBase}/api`);
-
-    // If the URL is already public (e.g., placeholder or external), directly use it
-    if (!isProtectedApi) {
-      setImgUrl(src);
-      return;
-    }
-
-    fetch(src, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch image");
-        return res.blob();
-      })
-      .then(blob => {
-        if (isMounted) setImgUrl(URL.createObjectURL(blob));
-      })
-      .catch(() => {
-        if (isMounted) setImgUrl("/placeholder.svg");
-      });
-
-    return () => {
-      isMounted = false;
-      if (imgUrl) URL.revokeObjectURL(imgUrl);
-    };
-  }, [src, token]);
-
-  if (!imgUrl) return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
-
-  return <img src={imgUrl} alt={alt} loading="lazy" {...props} />;
 }

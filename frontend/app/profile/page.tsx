@@ -8,6 +8,7 @@ import Link from "next/link"
 import { getApiBaseUrl, apiUrl } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
+import { ImagePreviewModal } from "@/components/ImagePreviewModal";
 
 interface ImageItem {
   id: string
@@ -254,31 +255,14 @@ export default function WardrobePage() {
       </div>
 
         {/* Image Preview Modal */}
-        {selectedImage && (
-          <div
-            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-            onClick={() => setSelectedImage(null)}
-          >
-            <div
-              className="bg-gray-900 border border-gray-700 rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-white">Wardrobe Item</h3>
-                <button onClick={() => setSelectedImage(null)} className="text-gray-400 hover:text-white text-2xl bg-gray-800 rounded-full w-8 h-8 flex items-center justify-center">
-                  ×
-                </button>
-              </div>
-              <ProtectedImage
-                src={selectedImage.url}
-                alt={selectedImage.description || "Wardrobe item"}
-                token={token}
-                className="w-full max-h-96 object-contain rounded-2xl mb-4"
-              />
-              {selectedImage.description && <p className="text-gray-300 text-center">{selectedImage.description}</p>}
-            </div>
-          </div>
-        )}
+        <ImagePreviewModal
+          open={!!selectedImage}
+          onClose={() => setSelectedImage(null)}
+          src={selectedImage?.url || ""}
+          alt={selectedImage?.description || "Wardrobe item"}
+          description={selectedImage?.description || undefined}
+          token={token}
+        />
     </div>
   )
 }
