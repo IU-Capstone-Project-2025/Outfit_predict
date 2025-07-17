@@ -12,7 +12,7 @@ import { ImagePreviewModal } from "@/components/ImagePreviewModal";
 
 interface ImageItem {
   id: string
-  description: string | null
+  description?: string
   object_name?: string
   url: string
 }
@@ -25,6 +25,7 @@ export default function WardrobePage() {
   const [menuOpenIndex, setMenuOpenIndex] = useState<number | null>(null);
   const menuButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const menuRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [selectedImageObjectNames, setSelectedImageObjectNames] = useState<string[]>([]);
 
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -37,6 +38,7 @@ export default function WardrobePage() {
       // Do not auto-redirect; just don't fetch images
       setWardrobeLoading(false);
       setImages([]);
+      setSelectedImageObjectNames([]); // Clear selection if no user
       return;
     }
     const fetchImages = async () => {
@@ -51,15 +53,49 @@ export default function WardrobePage() {
         if (!res.ok) throw new Error("Failed to fetch wardrobe images")
         const data = await res.json()
         setImages(data)
+        // Initialize selected images:
+        const storedSelection = localStorage.getItem("selectedOutfitItems");
+        if (storedSelection) {
+          const parsedSelection = JSON.parse(storedSelection);
+          // Ensure that parsedSelection only contains object_names that actually exist in the fetched images
+          const validSelection = data.map((img: ImageItem) => img.object_name).filter((name: string | undefined) => name && parsedSelection.includes(name));
+          setSelectedImageObjectNames(validSelection as string[]);
+        } else {
+          setSelectedImageObjectNames(data.map((img: ImageItem) => img.object_name).filter(Boolean) as string[]);
+        }
       } catch (err: any) {
         setError(err.message || "Unknown error")
         setImages([])
+        setSelectedImageObjectNames([]);
       } finally {
         setWardrobeLoading(false)
       }
     }
     fetchImages()
   }, [user, token, loading])
+
+  // Save selected images to local storage whenever they change
+  useEffect(() => {
+    localStorage.setItem("selectedOutfitItems", JSON.stringify(selectedImageObjectNames));
+  }, [selectedImageObjectNames]);
+
+  const handleImageSelection = useCallback((objectName: string) => {
+    setSelectedImageObjectNames(prev => {
+      if (prev.includes(objectName)) {
+        return prev.filter(name => name !== objectName);
+      } else {
+        return [...prev, objectName];
+      }
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedImageObjectNames(images.map(img => img.object_name).filter(Boolean) as string[]);
+  }, [images]);
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedImageObjectNames([]);
+  }, []);
 
   // Delete image
   const deleteImage = useCallback(async (imageId: string) => {
@@ -76,11 +112,15 @@ export default function WardrobePage() {
       })
       if (res.ok) {
         setImages((prev) => prev.filter((img) => img.id !== imageId))
+        setSelectedImageObjectNames(prev => prev.filter(name => {
+          const deletedImage = images.find(img => img.id === imageId);
+          return deletedImage ? name !== deletedImage.object_name : true;
+        }));
       }
     } catch (err) {
       // Optionally show error
     }
-  }, [token, user])
+  }, [token, user, images])
 
   useEffect(() => {
     if (menuOpenIndex === null) return;
@@ -127,6 +167,15 @@ export default function WardrobePage() {
       </div>
 
       <Header />
+
+      <ImagePreviewModal
+        open={!!selectedImage}
+        onClose={() => setSelectedImage(null)}
+        src={selectedImage?.url || ""}
+        alt={selectedImage?.description}
+        description={selectedImage?.description}
+        token={token}
+      />
 
       <div className="relative z-10 container mx-auto px-4 py-12">
         {(!user) ? (
@@ -182,13 +231,25 @@ export default function WardrobePage() {
                   Upload New Items
                 </Button>
               </Link>
+              <Button
+                onClick={handleSelectAll}
+                className="bg-gray-700 text-white hover:bg-gray-600 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2"
+              >
+                Select All
+              </Button>
+              <Button
+                onClick={handleDeselectAll}
+                className="bg-gray-700 text-white hover:bg-gray-600 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2"
+              >
+                Deselect All
+              </Button>
             </div>
 
             {/* Wardrobe Section */}
             <div className="max-w-6xl mx-auto">
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-bold flex items-center gap-3">
-                  My Profile
+                  My Wardrobe
                 </h2>
                 <div className="text-gray-400">{images.length} items</div>
               </div>
@@ -222,6 +283,21 @@ export default function WardrobePage() {
                           className="w-full h-full object-contain"
                         />
                       </div>
+                      {/* Checkbox for selection */}
+                      {image.object_name && (
+                        <div className="absolute top-2 left-2 z-10">
+                          <input
+                            type="checkbox"
+                            className="form-checkbox h-5 w-5 text-indigo-600 bg-gray-900 border-gray-700 rounded focus:ring-indigo-500"
+                            checked={selectedImageObjectNames.includes(image.object_name)}
+                            onChange={(e) => {
+                              e.stopPropagation(); // Prevent opening modal when clicking checkbox
+                              handleImageSelection(image.object_name as string);
+                            }}
+                            onClick={(e) => e.stopPropagation()} // Also stop propagation on click
+                          />
+                        </div>
+                      )}
                       {/* 3-dots menu button, appears on hover */}
                       <button
                         type="button"
@@ -253,16 +329,6 @@ export default function WardrobePage() {
           </>
         )}
       </div>
-
-        {/* Image Preview Modal */}
-        <ImagePreviewModal
-          open={!!selectedImage}
-          onClose={() => setSelectedImage(null)}
-          src={selectedImage?.url || ""}
-          alt={selectedImage?.description || "Wardrobe item"}
-          description={selectedImage?.description || undefined}
-          token={token}
-        />
     </div>
   )
 }
