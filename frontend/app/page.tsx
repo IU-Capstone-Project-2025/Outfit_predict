@@ -8,6 +8,7 @@ import { getApiBaseUrl, apiUrl } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { ImagePreviewModal, ProtectedImage } from "@/components/ImagePreviewModal";
 
 export default function OutfitGeneratorMain() {
   const [files, setFiles] = useState<File[]>([])
@@ -23,6 +24,11 @@ export default function OutfitGeneratorMain() {
   const [wardrobeLoading, setWardrobeLoading] = useState(true)
   const { user, loading } = useAuth()
   const router = useRouter()
+  const [previewImage, setPreviewImage] = useState<{
+    src: string;
+    alt?: string;
+    description?: string;
+  } | null>(null);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
 
@@ -152,49 +158,19 @@ export default function OutfitGeneratorMain() {
     if (!user) {
       return;
     }
-    let imagesToSend: File[] = files
-    // If no files uploaded, use wardrobe images
-    if (imagesToSend.length === 0 && wardrobeImages.length > 0) {
-      setLoadingRecommendations(true)
-      setRecommendationError(null)
-      try {
-        const blobs = await Promise.all(
-          wardrobeImages.map(async (img: any, idx: number) => {
-            const res = await fetch(img.url, {
-              headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
-            })
-            const blob = await res.blob()
-            return new File([blob], img.description || `wardrobe_${idx}.jpg`, { type: blob.type })
-          })
-        )
-        imagesToSend = blobs
-      } catch (err) {
-        setRecommendationError("Failed to load wardrobe images for outfit generation.")
-        setLoadingRecommendations(false)
-        return
-      }
-    }
-    if (imagesToSend.length === 0) {
-      showUploadMessage("Please upload at least one image to your profile.")
-      return
-    }
     setLoadingRecommendations(true)
     setRecommendationError(null)
     try {
-      const formData = new FormData()
-      imagesToSend.forEach((file) => formData.append("files", file))
+      // 1. Call the backend to generate recommendations
       const response = await fetch(apiUrl('v1/outfits/search-similar/'), {
         method: "POST",
-        body: formData,
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       })
       if (!response.ok) throw new Error("Failed to generate outfits")
       const recs = await response.json()
-      // Fetch all wardrobe images
+      // 2. Fetch all wardrobe images
       const imagesRes = await fetch(apiUrl('v1/images/'), {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -202,11 +178,11 @@ export default function OutfitGeneratorMain() {
       })
       if (!imagesRes.ok) throw new Error("Failed to fetch profile images")
       const images = await imagesRes.json()
-      // Attach wardrobe image URLs to recommendations
+      // 3. Attach wardrobe image URLs to recommendations
       const recsWithUrls = recs.map((rec: any) => {
         const matchesSrc = rec.recommendation?.matches || [];
         const matchesWithUrls = matchesSrc.map((match: any) => {
-          const wardrobeImage = images.find((img: any) => img.object_name === match.wardrobe_image_object_name || img.id === match.wardrobe_image_id)
+          const wardrobeImage = images.find((img: any) => img.object_name === match.wardrobe_image_object_name)
           return {
             ...match,
             wardrobe_image_url: wardrobeImage?.url,
@@ -225,7 +201,32 @@ export default function OutfitGeneratorMain() {
     } finally {
       setLoadingRecommendations(false)
     }
-  }, [files, wardrobeImages, showUploadMessage, token, user])
+  }, [showUploadMessage, token, user])
+
+  // Add a helper component for image with placeholder
+  function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
+    const [loaded, setLoaded] = React.useState(false);
+    return (
+      <>
+        {!loaded && (
+          <img
+            src="/placeholder.svg"
+            alt="placeholder"
+            className={className + " absolute inset-0 w-full h-full object-contain z-0"}
+            style={{ background: 'transparent' }}
+          />
+        )}
+        <ProtectedImage
+          src={src}
+          alt={alt}
+          token={token}
+          className={className + (loaded ? '' : ' invisible')}
+          onLoad={() => setLoaded(true)}
+          {...props}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
@@ -255,6 +256,139 @@ export default function OutfitGeneratorMain() {
       </div>
 
       <Header />
+
+      {/* Image Preview Modal rendered at the top level, outside recommendations modal overlay */}
+      <ImagePreviewModal
+        open={!!previewImage}
+        onClose={() => setPreviewImage(null)}
+        src={previewImage?.src || ""}
+        alt={previewImage?.alt}
+        description={previewImage?.description}
+        token={token}
+      />
+
+      {/* Recommendations Modal rendered at the top level, outside main content, to avoid header overlay */}
+      {showRecommendations && recommendations && !previewImage && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            if (!previewImage) setShowRecommendations(false);
+          }}
+        >
+          <div
+            className="bg-gray-900/95 border border-gray-700/50 rounded-3xl p-10 max-w-6xl w-full max-h-[90vh] overflow-auto shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-8 right-8 flex items-center justify-center w-12 h-12 rounded-full text-gray-300 hover:text-white text-3xl font-light transition-colors hover:bg-gray-800/50"
+              onClick={() => setShowRecommendations(false)}
+            >
+              ×
+            </button>
+
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-bold mb-4 text-white">Your AI-Generated Outfits</h2>
+              <p className="text-gray-400 text-lg">Here are personalized outfit combinations based on your wardrobe</p>
+            </div>
+
+            {recommendations.length === 0 ? (
+              <div className="text-center text-gray-400 text-xl py-16">
+                <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-8 h-8 text-gray-500" />
+                </div>
+                No outfit recommendations found. Try uploading more clothing items.
+              </div>
+            ) : (
+              <div className="space-y-12">
+                {recommendations.map((rec, idx) => (
+                  <div key={idx} className="bg-gray-900/80 rounded-3xl p-8 border border-gray-700/50">
+                    <div className="flex flex-col lg:flex-row gap-10 items-center">
+                      {/* For the main outfit image */}
+                      <div className="relative w-72 h-72 flex-shrink-0">
+                        {/* Placeholder */}
+                        <img src="/placeholder.svg" alt="placeholder" className="absolute inset-0 w-full h-full object-contain rounded-3xl z-0" />
+                        {/* Blurred background */}
+                        <div className="absolute inset-0 rounded-3xl overflow-hidden z-0">
+                          <ProtectedImage
+                            src={rec.outfit.url || "/placeholder.svg"}
+                            alt=""
+                            token={token}
+                            className="w-full h-full object-cover scale-110 blur-lg"
+                          />
+                        </div>
+                        {/* Main image */}
+                        <div
+                          className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
+                          onClick={() => setPreviewImage({
+                            src: rec.outfit.url || "/placeholder.svg",
+                            alt: `Generated Outfit #${idx + 1}`
+                          })}
+                        >
+                          <ImageWithPlaceholder
+                            src={rec.outfit.url || "/placeholder.svg"}
+                            alt="Generated Outfit"
+                            token={token}
+                            className="w-full h-full object-contain rounded-3xl"
+                          />
+                        </div>
+                        <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2 z-20">
+                          <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex-1">
+                        <h3 className="text-2xl font-bold text-white mb-6">Matched Wardrobe Items</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                          {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
+                            rec.matchesWithUrls.map((match: any, i: number) => (
+                              <div key={i} className="text-center relative w-32 h-32 mx-auto">
+                                {/* Placeholder */}
+                                <img src="/placeholder.svg" alt="placeholder" className="absolute inset-0 w-full h-full object-contain rounded-2xl z-0" />
+                                {/* Blurred background */}
+                                <div className="absolute inset-0 rounded-2xl overflow-hidden z-0">
+                                  <ProtectedImage
+                                    src={match.wardrobe_image_url || "/placeholder.svg"}
+                                    alt=""
+                                    token={token}
+                                    className="w-full h-full object-cover scale-110 blur-lg"
+                                  />
+                                </div>
+                                {/* Main image */}
+                                <div
+                                  className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
+                                  onClick={() => setPreviewImage({
+                                    src: match.wardrobe_image_url || "/placeholder.svg",
+                                    alt: match.wardrobe_image_description || "Wardrobe item",
+                                    description: match.wardrobe_image_description
+                                  })}
+                                >
+                                  <ImageWithPlaceholder
+                                    src={match.wardrobe_image_url || "/placeholder.svg"}
+                                    alt={match.wardrobe_image_description || "Wardrobe item"}
+                                    token={token}
+                                    className="w-full h-full object-contain rounded-2xl"
+                                  />
+                                </div>
+                                <p className="relative z-20 text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate mt-2">
+                                  {match.wardrobe_image_description || ''}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="col-span-full text-center text-gray-400 text-lg py-8">
+                              No wardrobe items matched for this outfit.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="relative z-10 container mx-auto px-4 py-12">
         {!user ? (
@@ -387,138 +521,9 @@ export default function OutfitGeneratorMain() {
                 </div>
               </div>
             )}
-
-            {/* Recommendations Modal */}
-            {showRecommendations && recommendations && (
-              <div
-                className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                onClick={() => setShowRecommendations(false)}
-              >
-                <div
-                  className="bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-10 max-w-6xl w-full max-h-[90vh] overflow-auto shadow-2xl relative"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    className="absolute top-8 right-8 text-gray-400 hover:text-white text-3xl font-light transition-colors w-12 h-12 flex items-center justify-center rounded-full hover:bg-gray-800/50"
-                    onClick={() => setShowRecommendations(false)}
-                  >
-                    ×
-                  </button>
-
-                  <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold mb-4 text-white">Your AI-Generated Outfits</h2>
-                    <p className="text-gray-400 text-lg">Here are personalized outfit combinations based on your wardrobe</p>
-                  </div>
-
-                  {recommendations.length === 0 ? (
-                    <div className="text-center text-gray-400 text-xl py-16">
-                      <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Sparkles className="w-8 h-8 text-gray-500" />
-                      </div>
-                      No outfit recommendations found. Try uploading more clothing items.
-                    </div>
-                  ) : (
-                    <div className="space-y-12">
-                      {recommendations.map((rec, idx) => (
-                        <div key={idx} className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/30">
-                          <div className="flex flex-col lg:flex-row gap-10 items-center">
-                            <div className="relative">
-                              <ProtectedImage
-                                src={rec.outfit.url || "/placeholder.svg"}
-                                alt="Generated Outfit"
-                                token={token}
-                                className="w-72 h-72 object-cover rounded-3xl border border-gray-600/50 shadow-lg"
-                              />
-                              <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2">
-                                <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex-1">
-                              <h3 className="text-2xl font-bold text-white mb-6">Matched Wardrobe Items</h3>
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                                {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
-                                  rec.matchesWithUrls.map((match: any, i: number) => (
-                                    <div key={i} className="text-center">
-                                      {match.wardrobe_image_url ? (
-                                        <ProtectedImage
-                                          src={match.wardrobe_image_url || "/placeholder.svg"}
-                                          alt={match.wardrobe_image_description || "Wardrobe item"}
-                                          token={token}
-                                          className="w-32 h-32 object-cover rounded-2xl border border-gray-600/50 shadow-md mx-auto mb-3"
-                                        />
-                                      ) : (
-                                        <div className="w-32 h-32 bg-gray-800/50 rounded-2xl flex items-center justify-center text-xs text-gray-500 border border-gray-600/50 mx-auto mb-3">
-                                          No image
-                                        </div>
-                                      )}
-                                      <p className="text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate">
-                                        {match.wardrobe_image_description || match.wardrobe_image_object_name}
-                                      </p>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className="col-span-full text-center text-gray-500 text-lg py-8">
-                                    No wardrobe items matched for this outfit.
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
     </div>
   )
-}
-
-function ProtectedImage({ src, alt, token, ...props }: { src: string, alt: string, token: string | null } & React.ImgHTMLAttributes<HTMLImageElement>) {
-  const [imgUrl, setImgUrl] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    let isMounted = true;
-    if (!src) return;
-
-    // Determine if this src points to the protected backend API.
-    const apiBase = getApiBaseUrl();
-    const isProtectedApi = src.startsWith("/api") || src.startsWith(`${apiBase}/api`);
-
-    // If the URL is already public (e.g., placeholder or external), directly use it
-    if (!isProtectedApi) {
-      setImgUrl(src);
-      return;
-    }
-
-    fetch(src, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch image");
-        return res.blob();
-      })
-      .then(blob => {
-        if (isMounted) setImgUrl(URL.createObjectURL(blob));
-      })
-      .catch(() => {
-        if (isMounted) setImgUrl("/placeholder.svg");
-      });
-
-    return () => {
-      isMounted = false;
-      if (imgUrl) URL.revokeObjectURL(imgUrl);
-    };
-  }, [src, token]);
-
-  if (!imgUrl) return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
-
-  return <img src={imgUrl} alt={alt} loading="lazy" {...props} />;
 }
