@@ -20,8 +20,6 @@ export default function OutfitGeneratorMain() {
   const [showRecommendations, setShowRecommendations] = useState(false)
   const [loadingRecommendations, setLoadingRecommendations] = useState(false)
   const [recommendationError, setRecommendationError] = useState<string | null>(null)
-  const [wardrobeImages, setWardrobeImages] = useState<any[]>([])
-  const [wardrobeLoading, setWardrobeLoading] = useState(true)
   const { user, loading } = useAuth()
   const router = useRouter()
   const [previewImage, setPreviewImage] = useState<{
@@ -31,34 +29,6 @@ export default function OutfitGeneratorMain() {
   } | null>(null);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
-
-  // Fetch wardrobe images on mount
-  React.useEffect(() => {
-    if (loading) return;
-    if (!user) {
-      setWardrobeLoading(false);
-      setWardrobeImages([]);
-      return;
-    }
-    const fetchImages = async () => {
-      setWardrobeLoading(true)
-      try {
-        const res = await fetch(apiUrl('v1/images/'), {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        })
-        if (!res.ok) throw new Error("Failed to fetch profile images")
-        const data = await res.json()
-        setWardrobeImages(data)
-      } catch (err) {
-        setWardrobeImages([])
-      } finally {
-        setWardrobeLoading(false)
-      }
-    }
-    fetchImages()
-  }, [user, router, token, loading])
 
   const showUploadMessage = useCallback((message: string) => {
     if (fadeOutTimeoutRef.current) {
@@ -93,7 +63,6 @@ export default function OutfitGeneratorMain() {
       if (response.ok) {
         const result = await response.json()
         showUploadMessage(`Image "${file.name}" uploaded successfully!`)
-        setWardrobeImages((prev: any[]) => [result, ...prev])
       } else {
         showUploadMessage(`Failed to upload "${file.name}".`)
       }
@@ -170,30 +139,39 @@ export default function OutfitGeneratorMain() {
       })
       if (!response.ok) throw new Error("Failed to generate outfits")
       const recs = await response.json()
-      // 2. Fetch all wardrobe images
-      const imagesRes = await fetch(apiUrl('v1/images/'), {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      })
-      if (!imagesRes.ok) throw new Error("Failed to fetch profile images")
-      const images = await imagesRes.json()
-      // 3. Attach wardrobe image URLs to recommendations
-      const recsWithUrls = recs.map((rec: any) => {
+      // 2. For each match, fetch the wardrobe image URL from the new endpoint
+      const recsWithUrls = await Promise.all(recs.map(async (rec: any) => {
         const matchesSrc = rec.recommendation?.matches || [];
-        const matchesWithUrls = matchesSrc.map((match: any) => {
-          const wardrobeImage = images.find((img: any) => img.object_name === match.wardrobe_image_object_name)
+        const matchesWithUrls = await Promise.all(matchesSrc.map(async (match: any) => {
+          let wardrobe_image_url = undefined;
+          let wardrobe_image_description = undefined;
+          if (match.wardrobe_image_object_name) {
+            try {
+              const urlRes = await fetch(apiUrl(`v1/utilities/${encodeURIComponent(match.wardrobe_image_object_name)}/url`), {
+                headers: {
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+              });
+              if (urlRes.ok) {
+                const urlData = await urlRes.json();
+                wardrobe_image_url = urlData.url;
+                wardrobe_image_description = urlData.description;
+              }
+            } catch (e) {
+              // fallback to undefined
+            }
+          }
           return {
             ...match,
-            wardrobe_image_url: wardrobeImage?.url,
-            wardrobe_image_description: wardrobeImage?.description,
+            wardrobe_image_url: wardrobe_image_url || "/placeholder.svg",
+            wardrobe_image_description: wardrobe_image_description,
           };
-        });
+        }));
         return {
           ...rec,
           matchesWithUrls,
         };
-      });
+      }));
       setRecommendations(recsWithUrls)
       setShowRecommendations(true)
     } catch (err) {
