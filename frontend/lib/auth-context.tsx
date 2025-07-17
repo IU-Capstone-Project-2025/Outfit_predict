@@ -97,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     localStorage.removeItem("token")
     localStorage.removeItem("user_email")
+    localStorage.removeItem("selectedOutfitItems") // Clear selected items on logout
     // Remove cookie
     document.cookie = "token=; path=/; max-age=0"
     setUser(null)

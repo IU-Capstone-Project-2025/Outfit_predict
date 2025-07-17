@@ -25,7 +25,41 @@ export default function WardrobePage() {
   const [menuOpenIndex, setMenuOpenIndex] = useState<number | null>(null);
   const menuButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const menuRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [selectedImageObjectNames, setSelectedImageObjectNames] = useState<string[]>([]);
+  const isInitialLoad = useRef(true); // Ref to track initial component load
+
+  const [selectedImageObjectNames, setSelectedImageObjectNames] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const storedSelection = localStorage.getItem("selectedOutfitItems");
+    if (storedSelection === null) {
+      return []; // No explicit selection ever made, return empty to be populated by useEffect if needed
+    }
+    try {
+      const parsedSelection = JSON.parse(storedSelection);
+      if (Array.isArray(parsedSelection)) {
+        return parsedSelection as string[];
+      }
+    } catch (e) {
+      console.error("Error parsing stored selection from localStorage on initial load:", e);
+    }
+    return []; // Fallback for error or invalid format
+  });
+
+  const [explicitlyDeselectedImageObjectNames, setExplicitlyDeselectedImageObjectNames] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const storedDeselected = localStorage.getItem("explicitlyDeselectedOutfitItems");
+    if (storedDeselected === null) {
+      return [];
+    }
+    try {
+      const parsedDeselected = JSON.parse(storedDeselected);
+      if (Array.isArray(parsedDeselected)) {
+        return parsedDeselected as string[];
+      }
+    } catch (e) {
+      console.error("Error parsing explicitly deselected from localStorage on initial load:", e);
+    }
+    return [];
+  });
 
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -39,6 +73,9 @@ export default function WardrobePage() {
       setWardrobeLoading(false);
       setImages([]);
       setSelectedImageObjectNames([]); // Clear selection if no user
+      localStorage.removeItem("selectedOutfitItems"); // Also clear from localStorage
+      setExplicitlyDeselectedImageObjectNames([]); // Clear explicitly deselected on logout
+      localStorage.removeItem("explicitlyDeselectedOutfitItems"); // Also clear from localStorage
       return;
     }
     const fetchImages = async () => {
@@ -53,37 +90,85 @@ export default function WardrobePage() {
         if (!res.ok) throw new Error("Failed to fetch wardrobe images")
         const data = await res.json()
         setImages(data)
-        // Initialize selected images:
-        const storedSelection = localStorage.getItem("selectedOutfitItems");
-        if (storedSelection) {
-          const parsedSelection = JSON.parse(storedSelection);
-          // Ensure that parsedSelection only contains object_names that actually exist in the fetched images
-          const validSelection = data.map((img: ImageItem) => img.object_name).filter((name: string | undefined) => name && parsedSelection.includes(name));
-          setSelectedImageObjectNames(validSelection as string[]);
+        
+        const fetchedObjectNames = data.map((img: ImageItem) => img.object_name).filter(Boolean) as string[];
+        const storedSelectionRaw = typeof window !== 'undefined' ? localStorage.getItem("selectedOutfitItems") : null;
+        const storedDeselectedRaw = typeof window !== 'undefined' ? localStorage.getItem("explicitlyDeselectedOutfitItems") : null;
+
+        // Determine initial selection based on localStorage and fetched images
+        if (storedSelectionRaw === null && storedDeselectedRaw === null) {
+            // Case 1: No prior explicit selection or deselection history. Default to selecting all fetched images.
+            setSelectedImageObjectNames(fetchedObjectNames);
+            setExplicitlyDeselectedImageObjectNames([]);
         } else {
-          setSelectedImageObjectNames(data.map((img: ImageItem) => img.object_name).filter(Boolean) as string[]);
+            // Case 2: Explicit selection/deselection history exists in localStorage.
+            let parsedSelected: string[] = [];
+            let parsedDeselected: string[] = [];
+
+            try {
+                if (storedSelectionRaw) {
+                    const parsed = JSON.parse(storedSelectionRaw);
+                    if (Array.isArray(parsed)) parsedSelected = parsed;
+                }
+            } catch (e) { console.error("Error parsing stored selected items:", e); }
+
+            try {
+                if (storedDeselectedRaw) {
+                    const parsed = JSON.parse(storedDeselectedRaw);
+                    if (Array.isArray(parsed)) parsedDeselected = parsed;
+                }
+            } catch (e) { console.error("Error parsing stored deselected items:", e); }
+            
+            // Start with all fetched items, then apply deselections, then apply selections
+            let currentSelection = new Set(fetchedObjectNames);
+
+            // Remove explicitly deselected items
+            parsedDeselected.forEach(name => currentSelection.delete(name));
+
+            // Add explicitly selected items (this is mostly for re-syncing if a deselected item was re-selected via 'select all' but not saved yet)
+            parsedSelected.forEach(name => {
+                if (fetchedObjectNames.includes(name)) {
+                    currentSelection.add(name);
+                }
+            });
+            
+            // Ensure the explicitly deselected list is clean and only contains items that are actually in the wardrobe
+            const cleanedDeselected = parsedDeselected.filter(name => fetchedObjectNames.includes(name) && !parsedSelected.includes(name));
+            setExplicitlyDeselectedImageObjectNames(cleanedDeselected);
+            setSelectedImageObjectNames(Array.from(currentSelection).filter(name => fetchedObjectNames.includes(name)));
         }
+
       } catch (err: any) {
         setError(err.message || "Unknown error")
         setImages([])
-        setSelectedImageObjectNames([]);
+        setSelectedImageObjectNames([]); // Clear selected on error
+        setExplicitlyDeselectedImageObjectNames([]); // Clear deselected on error
       } finally {
         setWardrobeLoading(false)
+        isInitialLoad.current = false; // Mark initial load complete after images are processed
       }
     }
     fetchImages()
   }, [user, token, loading])
 
-  // Save selected images to local storage whenever they change
+  // Save selected and deselected images to local storage whenever they change
   useEffect(() => {
+    // Only save if not initial load, to prevent overwriting correct initial state
+    if (isInitialLoad.current) {
+      return; // Do not save during initial load phase
+    }
     localStorage.setItem("selectedOutfitItems", JSON.stringify(selectedImageObjectNames));
-  }, [selectedImageObjectNames]);
+    localStorage.setItem("explicitlyDeselectedOutfitItems", JSON.stringify(explicitlyDeselectedImageObjectNames));
+  }, [selectedImageObjectNames, explicitlyDeselectedImageObjectNames]);
 
   const handleImageSelection = useCallback((objectName: string) => {
     setSelectedImageObjectNames(prev => {
-      if (prev.includes(objectName)) {
+      const isCurrentlySelected = prev.includes(objectName);
+      if (isCurrentlySelected) {
+        setExplicitlyDeselectedImageObjectNames(prevDeselected => [...prevDeselected, objectName]);
         return prev.filter(name => name !== objectName);
       } else {
+        setExplicitlyDeselectedImageObjectNames(prevDeselected => prevDeselected.filter(name => name !== objectName));
         return [...prev, objectName];
       }
     });
@@ -91,11 +176,13 @@ export default function WardrobePage() {
 
   const handleSelectAll = useCallback(() => {
     setSelectedImageObjectNames(images.map(img => img.object_name).filter(Boolean) as string[]);
+    setExplicitlyDeselectedImageObjectNames([]); // Clear deselected when all are selected
   }, [images]);
 
   const handleDeselectAll = useCallback(() => {
     setSelectedImageObjectNames([]);
-  }, []);
+    setExplicitlyDeselectedImageObjectNames(images.map(img => img.object_name).filter(Boolean) as string[]);
+  }, [images]);
 
   // Delete image
   const deleteImage = useCallback(async (imageId: string) => {
@@ -113,6 +200,10 @@ export default function WardrobePage() {
       if (res.ok) {
         setImages((prev) => prev.filter((img) => img.id !== imageId))
         setSelectedImageObjectNames(prev => prev.filter(name => {
+          const deletedImage = images.find(img => img.id === imageId);
+          return deletedImage ? name !== deletedImage.object_name : true;
+        }));
+        setExplicitlyDeselectedImageObjectNames(prev => prev.filter(name => {
           const deletedImage = images.find(img => img.id === imageId);
           return deletedImage ? name !== deletedImage.object_name : true;
         }));
