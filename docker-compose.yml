@@ -2,11 +2,8 @@ services:
   db:
     image: postgres:15
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
@@ -22,22 +19,20 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     volumes:
       - minio-data:/data
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # Web console
+      - "9000:9000"
+      - "9001:9001"
     networks: [api-net]
 
   backend:
     build: ./backend
-    env_file:
-      - .env
+    env_file: [.env]
     depends_on:
       - db
       - minio
@@ -56,20 +51,19 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     depends_on:
       - backend
     ports:
       - "3000:3000"
     networks: [api-net]
 
-  # Monitoring Services
   dozzle:
     image: amir20/dozzle:latest
     container_name: dozzle
+    restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
@@ -77,31 +71,33 @@ services:
     environment:
       DOZZLE_LEVEL: info
       DOZZLE_TAILSIZE: 300
-      DOZZLE_FILTER: "status=running"
+      DOZZLE_FILTER: status=running
+      DOZZLE_BASE: /logs
     networks: [api-net]
-    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
+    restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --storage.tsdb.retention.time=200h
+      - --web.enable-lifecycle
+      - --web.external-url=https://outfitpredict.ru/prometheus/
     networks: [api-net]
-    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
+    restart: unless-stopped
     ports:
       - "3001:3000"
     volumes:
@@ -111,12 +107,10 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
       GF_USERS_ALLOW_SIGN_UP: false
-      # Sub-path configuration for nginx proxying
-      GF_SERVER_DOMAIN: ${DOMAIN:-localhost}
+      GF_SERVER_DOMAIN: ${DOMAIN:-outfitpredict.ru}
       GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
-      GF_SERVER_SERVE_FROM_SUB_PATH: true
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     networks: [api-net]
-    restart: unless-stopped
     depends_on:
       - prometheus
 
@@ -129,10 +123,10 @@ services:
       - /sys:/host/sys:ro
       - /:/rootfs:ro
     command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - --path.procfs=/host/proc
+      - --path.rootfs=/rootfs
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
     ports:
       - "9100:9100"
     networks: [api-net]
