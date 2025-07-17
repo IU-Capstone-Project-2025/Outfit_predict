@@ -14,6 +14,22 @@ WORKDIR /usr/src/app
 COPY requirements.txt .
 RUN pip install --user -r requirements.txt
 
+ENV HF_HOME=/root/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers
+
+RUN python - <<EOF
+from huggingface_hub import snapshot_download
+snapshot_download(
+  "microsoft/Florence-2-base",
+  cache_dir="/root/.cache/huggingface/hub",
+  library_name="transformers",
+  library_version="4.x"
+)
+EOF
+
+RUN python -c "import torch; \
+    torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')"
+
 #--------------------- STAGE 2: Final Image ---------------------
 FROM python:3.12-slim
 

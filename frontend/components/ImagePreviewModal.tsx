@@ -95,4 +95,4 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ open, onCl
       </div>
     </div>
   );
-}; 
+};
