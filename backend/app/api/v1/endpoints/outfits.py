@@ -2,7 +2,7 @@ import io
 import os
 import tempfile
 import uuid
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 import cv2
@@ -22,9 +22,20 @@ from app.models.user import User
 from app.schemas.outfit import OutfitRead
 from app.storage.minio_client import MinioService
 from app.storage.qdrant_client import QdrantService
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import StreamingResponse
 from PIL import Image
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Initialize logger for outfit operations
@@ -57,13 +68,15 @@ async def upload_outfit(
     """Upload a new outfit image."""
     logger.info(f"Outfit upload started for user {current_user.email}")
     logger.debug(
-        f"Upload details - filename: {file.filename}, content_type: {file.content_type}"
+        f"Upload details - filename: {file.filename}, "
+        f"content_type: {file.content_type}"
     )
 
     try:
         if not file.content_type.startswith("image/"):
             logger.warning(
-                f"Invalid file type for outfit upload by user {current_user.email}: {file.content_type}"
+                f"Invalid file type for outfit upload by user {current_user.email}: "
+                f"{file.content_type}"
             )
             raise HTTPException(status_code=400, detail="File must be an image")
 
@@ -91,7 +104,8 @@ async def upload_outfit(
         )
 
         logger.info(
-            f"Outfit upload completed successfully for user {current_user.email} - Outfit ID: {outfit.id}"
+            f"Outfit upload completed successfully for user {current_user.email} - "
+            f"Outfit ID: {outfit.id}"
         )
         return result
 
@@ -115,7 +129,8 @@ async def get_outfits(
 ):
     """Get a list of outfits."""
     logger.info(
-        f"Listing outfits for user {current_user.email} (skip={skip}, limit={limit})"
+        f"Listing outfits for user {current_user.email} "
+        f"(skip={skip}, limit={limit})"
     )
 
     try:
@@ -174,7 +189,8 @@ async def get_outfit(
         raise
     except Exception as e:
         logger.error(
-            f"Error getting outfit {outfit_id} for user {current_user.email}: {str(e)}"
+            f"Error getting outfit {outfit_id} for user {current_user.email}: "
+            f"{str(e)}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -220,7 +236,8 @@ async def get_outfit_file(
         media_type = obj.headers.get("Content-Type", "application/octet-stream")
 
         logger.info(
-            f"Outfit file {object_name} download started for user {current_user.email}"
+            f"Outfit file {object_name} download started for user "
+            f"{current_user.email}"
         )
         return StreamingResponse(iter_data(), media_type=media_type, headers=headers)
 
@@ -228,7 +245,8 @@ async def get_outfit_file(
         raise
     except Exception as e:
         logger.error(
-            f"Error downloading outfit file {object_name} for user {current_user.email}: {str(e)}"
+            f"Error downloading outfit file {object_name} for user "
+            f"{current_user.email}: {str(e)}"
         )
         raise HTTPException(status_code=404, detail=f"File not found. Exception:{e}")
 
@@ -280,7 +298,7 @@ async def search_similar_outfits(
                 valid_wardrobe_items.append(db_image)
             except Exception as img_error:
                 logger.warning(
-                    f"Failed to load image {db_image.object_name}: {str(img_error)}"
+                    f"Failed to load image {db_image.object_name}: " f"{str(img_error)}"
                 )
                 continue
 
@@ -305,7 +323,8 @@ async def search_similar_outfits(
         )
 
         logger.info(
-            f"Found {len(recommended_outfits)} similar outfit recommendations for user {current_user.email}"
+            f"Found {len(recommended_outfits)} similar outfit recommendations for user "
+            f"{current_user.email}"
         )
         # Log completeness scores of recommended outfits for debugging
         logger.debug(
@@ -350,12 +369,161 @@ async def search_similar_outfits(
         raise
     except Exception as e:
         logger.error(
-            f"Error in similar outfit search for user {current_user.email}: {str(e)}"
+            f"Error in similar outfit search for user {current_user.email}: "
+            f"{str(e)}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error searching for similar outfits",
         )
+
+
+class WardrobeSubsetRequest(BaseModel):
+    """
+    Request model for searching similar outfits using a subset of wardrobe images.
+    Provide a list of image object_names (recommended) or image IDs.
+    """
+
+    object_names: Optional[List[str]] = None
+    image_ids: Optional[List[str]] = None  # UUIDs as strings
+
+
+@router.post("/search-similar-subset/", response_model=List[dict])
+async def search_similar_outfits_subset(
+    request: Request,
+    body: WardrobeSubsetRequest = Body(...),
+    db: AsyncSession = Depends(get_db),
+    minio: MinioService = Depends(get_minio),
+    current_user: User = Depends(get_current_user),
+    image_search: ImageSearchEngine = Depends(get_image_search_engine),
+    qdrant: QdrantService = Depends(get_qdrant_service),
+):
+    """
+    Search for similar outfits based on a user-selected subset of wardrobe images.
+    The user must provide a list of image object_names (recommended) or image IDs (UUIDs as strings).
+    Use GET /images/ to list all wardrobe images and their object_names/ids.
+    """
+    logger.info(
+        f"Starting similar outfit search (subset) for user {current_user.email}"
+    )
+
+    # Validate input
+    if not body.object_names and not body.image_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one of: object_names or image_ids.",
+        )
+
+    # Fetch images from DB
+    wardrobe_images = []
+    wardrobe_object_names = []
+    if body.object_names:
+        # By object_name
+        for obj_name in body.object_names:
+            img = await db.execute(
+                select(crud_image.Image).where(
+                    crud_image.Image.object_name == obj_name,
+                    crud_image.Image.user_id == current_user.id,
+                )
+            )
+            img = img.scalar_one_or_none()
+            if img:
+                wardrobe_object_names.append(img.object_name)
+                try:
+                    obj = minio.get_stream(img.object_name)
+                    img_bytes = obj.read()
+                    obj.close()
+                    pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+                    wardrobe_images.append(pil_img)
+                except Exception as e:
+                    logger.warning(f"Failed to load image {img.object_name}: {str(e)}")
+            else:
+                logger.warning(
+                    f"Image with object_name {obj_name} not found for user "
+                    f"{current_user.email}"
+                )
+    elif body.image_ids:
+        # By image_id
+        for img_id in body.image_ids:
+            try:
+                uuid_id = UUID(img_id)
+            except Exception:
+                logger.warning(f"Invalid image_id format: {img_id}")
+                continue
+            img = await crud_image.get_image(db, uuid_id, current_user.id)
+            if img:
+                wardrobe_object_names.append(img.object_name)
+                try:
+                    obj = minio.get_stream(img.object_name)
+                    img_bytes = obj.read()
+                    obj.close()
+                    pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+                    wardrobe_images.append(pil_img)
+                except Exception as e:
+                    logger.warning(f"Failed to load image {img.object_name}: {str(e)}")
+            else:
+                logger.warning(
+                    f"Image with id {img_id} not found for user "
+                    f"{current_user.email}"
+                )
+
+    if not wardrobe_images:
+        logger.warning(
+            f"No valid wardrobe images found for subset search for user "
+            f"{current_user.email}"
+        )
+        raise HTTPException(status_code=404, detail="No valid wardrobe images found.")
+
+    logger.info(f"Loaded {len(wardrobe_images)} images for subset analysis")
+
+    # ML search logic (same as /search-similar/)
+    recommended_outfits = await image_search.find_similar_outfit(
+        images=wardrobe_images,
+        wardrobe_object_names=wardrobe_object_names,
+        qdrant=qdrant,
+    )
+
+    logger.info(
+        f"Found {len(recommended_outfits)} similar outfit recommendations for user "
+        f"{current_user.email} (subset)"
+    )
+    logger.debug(
+        f"Recommendation details: {[r.completeness_score for r in recommended_outfits]}"
+    )
+
+    # Convert to frontend-expected format
+    result = []
+    for rec in recommended_outfits:
+        try:
+            outfit = await outfit_crud.get_outfit_by_id_any(db, UUID(rec.outfit_id))
+            if not outfit:
+                logger.warning(f"Outfit {rec.outfit_id} not found in database")
+                continue
+
+            outfit_url = build_url(
+                request, "get_outfit_file", object_name=outfit.object_name
+            )
+
+            result.append(
+                {
+                    "outfit": {
+                        "id": str(outfit.id),
+                        "url": outfit_url,
+                        "object_name": outfit.object_name,
+                        "created_at": outfit.created_at.isoformat(),
+                    },
+                    "recommendation": {
+                        "completeness_score": rec.completeness_score,
+                        "matches": [match.model_dump() for match in rec.matches],
+                    },
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Error processing outfit {rec.outfit_id}: {str(e)}")
+            continue
+
+    logger.info(f"Returning {len(result)} formatted outfit recommendations (subset)")
+    return result
 
 
 @router.post("/upload-and-process/", response_model=OutfitRead, deprecated=True)
@@ -415,7 +583,8 @@ async def delete_outfit(
         qdrant_success = qdrant.delete_outfit_vectors(str(outfit_id))
         if not qdrant_success:
             logger.warning(
-                f"Failed to delete vectors for outfit {outfit_id} from Qdrant by user {current_user.email}"
+                f"Failed to delete vectors for outfit {outfit_id} from Qdrant by user "
+                f"{current_user.email}"
             )
             print(
                 f"Warning: Failed to delete vectors for outfit {outfit_id} from Qdrant"
@@ -425,7 +594,8 @@ async def delete_outfit(
         minio_success = minio.delete_file(outfit.object_name)
         if not minio_success:
             logger.warning(
-                f"Failed to delete file {outfit.object_name} from MinIO by user {current_user.email}"
+                f"Failed to delete file {outfit.object_name} from MinIO by user "
+                f"{current_user.email}"
             )
             print(f"Warning: Failed to delete file {outfit.object_name} from MinIO")
 
@@ -433,7 +603,8 @@ async def delete_outfit(
         deleted_outfit = await outfit_crud.delete_outfit(db, outfit_id, current_user.id)
         if not deleted_outfit:
             logger.warning(
-                f"Failed to delete outfit {outfit_id} from database by user {current_user.email}"
+                f"Failed to delete outfit {outfit_id} from database by user "
+                f"{current_user.email}"
             )
             raise HTTPException(
                 status_code=404, detail="Failed to delete outfit from database"
@@ -448,7 +619,8 @@ async def delete_outfit(
         raise
     except Exception as e:
         logger.error(
-            f"Error deleting outfit {outfit_id} for user {current_user.email}: {str(e)}"
+            f"Error deleting outfit {outfit_id} for user {current_user.email}: "
+            f"{str(e)}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -476,13 +648,15 @@ async def split_outfit_to_clothes(
     """
     logger.info(f"Outfit split to clothes started for user {current_user.email}")
     logger.debug(
-        f"Upload details - filename: {file.filename}, content_type: {file.content_type}"
+        f"Upload details - filename: {file.filename}, "
+        f"content_type: {file.content_type}"
     )
 
     try:
         if not file.content_type.startswith("image/"):
             logger.warning(
-                f"Invalid file type for outfit split to clothes by user {current_user.email}: {file.content_type}"
+                f"Invalid file type for outfit split to clothes by user "
+                f"{current_user.email}: {file.content_type}"
             )
             raise HTTPException(status_code=400, detail="File must be an image")
 
@@ -510,7 +684,8 @@ async def split_outfit_to_clothes(
             result = segmentation_model.get_segment_images(tmp_path)
             if not result or len(result) == 0:
                 logger.warning(
-                    f"No clothing items detected in the image for outfit {outfit_id} by user {current_user.email}"
+                    f"No clothing items detected in the image for outfit "
+                    f"{outfit_id} by user {current_user.email}"
                 )
                 raise HTTPException(
                     status_code=422, detail="No clothing items detected in the image."
@@ -518,14 +693,16 @@ async def split_outfit_to_clothes(
             segmented_clothes, cloth_names = result
             if len(segmented_clothes) == 0:
                 logger.warning(
-                    f"No clothing items detected in the image for outfit {outfit_id} by user {current_user.email}"
+                    f"No clothing items detected in the image for outfit "
+                    f"{outfit_id} by user {current_user.email}"
                 )
                 raise HTTPException(
                     status_code=422, detail="No clothing items detected in the image."
                 )
 
             logger.info(
-                f"Successfully segmented {len(segmented_clothes)} clothing items for outfit {outfit_id}"
+                f"Successfully segmented {len(segmented_clothes)} clothing items for outfit "
+                f"{outfit_id}"
             )
 
             # 4. Add each detected clothing item to Qdrant
@@ -533,7 +710,7 @@ async def split_outfit_to_clothes(
             for name, cropped_img in zip(cloth_names, segmented_clothes):
                 if cropped_img.size == 0:
                     logger.warning(
-                        f"Skipping empty crop for item {name} in outfit {outfit_id}"
+                        f"Skipping empty crop for item {name} in outfit " f"{outfit_id}"
                     )
                     continue  # skip empty crops
                 pil_img = Image.fromarray(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
@@ -544,7 +721,8 @@ async def split_outfit_to_clothes(
                 clothing_info.append({"name": name, "image_id": image_id})
 
             logger.info(
-                f"Successfully added {len(clothing_info)} clothing items to Qdrant for outfit {outfit_id}"
+                f"Successfully added {len(clothing_info)} clothing items to Qdrant for outfit "
+                f"{outfit_id}"
             )
 
             # 5. Build proxy URL
@@ -562,7 +740,8 @@ async def split_outfit_to_clothes(
             }
 
             logger.info(
-                f"Outfit split to clothes completed successfully for user {current_user.email} - Outfit ID: {outfit_id}"
+                f"Outfit split to clothes completed successfully for user "
+                f"{current_user.email} - Outfit ID: {outfit_id}"
             )
             return result
 
@@ -574,7 +753,8 @@ async def split_outfit_to_clothes(
         raise
     except Exception as e:
         logger.error(
-            f"Error in outfit split to clothes for user {current_user.email}: {str(e)}"
+            f"Error in outfit split to clothes for user {current_user.email}: "
+            f"{str(e)}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
