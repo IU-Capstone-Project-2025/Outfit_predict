@@ -6,6 +6,7 @@ from app.api.v1.endpoints import auth as auth_router
 from app.api.v1.endpoints import clothing as clothing_router
 from app.api.v1.endpoints import image as image_router
 from app.api.v1.endpoints import outfits as outfits_router
+from app.api.v1.endpoints import utilities as utilities_router
 from app.core.config import get_settings
 from app.core.logging import get_logger, setup_logging
 from fastapi import FastAPI, Request
@@ -116,6 +117,9 @@ app.include_router(outfits_router.router, prefix=get_settings().api_prefix)
 
 logger.info("Registering auth router...")
 app.include_router(auth_router.router, prefix=get_settings().api_prefix)
+
+logger.info("Registering utilities router...")
+app.include_router(utilities_router.router, prefix=get_settings().api_prefix)
 
 logger.info("All routers registered successfully")
 
