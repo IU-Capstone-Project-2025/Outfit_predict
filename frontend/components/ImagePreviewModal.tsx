@@ -1,4 +1,5 @@
 import React from "react";
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 interface ImagePreviewModalProps {
   open: boolean;
@@ -60,7 +61,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ open, onCl
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 border border-gray-700 rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto shadow-2xl"
+        className="bg-gray-900 border border-gray-700 rounded-3xl p-6 max-w-5xl w-full max-h-[95vh] overflow-auto shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -69,13 +70,28 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ open, onCl
             ×
           </button>
         </div>
-        <ProtectedImage
-          src={src}
-          alt={alt || "Preview image"}
-          token={token}
-          className="w-full max-h-96 object-contain rounded-2xl mb-4"
-        />
-        {description && <p className="text-gray-300 text-center">{description}</p>}
+        <div className="w-full flex items-center justify-center" style={{ minHeight: '16rem', maxHeight: '80vh' }}>
+          <TransformWrapper
+            doubleClick={{ mode: 'zoomIn' }}
+            pinch={{ disabled: false }}
+            wheel={{ step: 40 }}
+            panning={{ velocityDisabled: true }}
+            minScale={1}
+            initialScale={1}
+          >
+            <TransformComponent wrapperClass="w-full h-full flex items-center justify-center">
+              <ProtectedImage
+                src={src}
+                alt={alt || "Preview image"}
+                token={token}
+                className="w-full max-h-[80vh] object-contain mb-4 select-none"
+                draggable={false}
+                style={{ touchAction: 'none', userSelect: 'none' }}
+              />
+            </TransformComponent>
+          </TransformWrapper>
+        </div>
+        {description && <p className="text-gray-300 text-center mt-2">{description}</p>}
       </div>
     </div>
   );
