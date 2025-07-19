@@ -1,4 +1,6 @@
+import random
 import uuid
+from typing import List
 from uuid import UUID
 
 from app.models.outfit import Outfit
@@ -79,3 +81,16 @@ async def delete_outfit(
     await db.delete(outfit)
     await db.commit()
     return outfit
+
+
+async def get_all_outfit_ids(db: AsyncSession) -> List[str]:
+    """Fetches all outfit IDs from the database."""
+    result = await db.execute(select(Outfit.id))
+    return [str(id) for id in result.scalars().all()]
+
+
+def sample_outfit_ids(outfit_ids: List[str], sample_size: int) -> List[str]:
+    """Randomly samples a subset of outfit IDs."""
+    if len(outfit_ids) <= sample_size:
+        return outfit_ids
+    return random.sample(outfit_ids, sample_size)

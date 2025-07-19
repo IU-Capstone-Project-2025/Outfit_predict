@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class ImageBase(BaseModel):
     description: str | None
+    clothing_type: str | None = None
 
 
 class ImageCreate(ImageBase):

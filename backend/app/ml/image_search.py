@@ -129,7 +129,12 @@ class ImageSearchEngine:
             raise
 
     async def add_image_to_index(
-        self, image: Image.Image, image_id: str, outfit_id: str, qdrant: QdrantService
+        self,
+        image: Image.Image,
+        image_id: str,
+        outfit_id: str,
+        qdrant: QdrantService,
+        clothing_type: str,
     ) -> None:
         """
         Add a single image to the Qdrant index
@@ -139,9 +144,10 @@ class ImageSearchEngine:
             image_id: Unique identifier for the image
             outfit_id: ID of the outfit this image belongs to
             qdrant: QdrantService instance
+            clothing_type: Optional clothing type label (from YOLO detection)
         """
         logger.debug(
-            f"Adding image to index: image_id={image_id}, outfit_id={outfit_id}"
+            f"Adding image to index: image_id={image_id}, outfit_id={outfit_id}, clothing_type={clothing_type}"
         )
 
         try:
@@ -150,21 +156,179 @@ class ImageSearchEngine:
             vector = self.get_image_embeddings(image)[0]
 
             # Create point with vector and metadata
+            payload = {"outfit_id": outfit_id}
+            if clothing_type:
+                payload["clothing_type"] = clothing_type
+
             point = {
                 "id": image_id,
                 "vector": vector,
-                "payload": {"outfit_id": outfit_id},
+                "payload": payload,
             }
 
             # Upsert to Qdrant
             logger.debug("Upserting vector to Qdrant")
             qdrant.upsert_vectors([point])
 
-            logger.info(f"Successfully added image to index: {image_id}")
+            logger.info(
+                f"Successfully added image to index: {image_id} with clothing_type: {clothing_type}"
+            )
 
         except Exception as e:
             logger.error(f"Error adding image to index (image_id={image_id}): {str(e)}")
             raise
+
+    async def find_similar_outfit_v2(
+        self,
+        images: List[Tuple[Image.Image, str]],  # (image, clothing_type)
+        wardrobe_object_names: List[str],
+        sampled_outfit_ids: List[str],
+        qdrant: QdrantService,
+        limit_outfits: int = 10,
+    ) -> List[RecommendedOutfit]:
+        """
+        Finds the best-matching outfits from a sampled list for a given set of wardrobe items.
+        This version uses clothing type matching to ensure correct item pairing and avoids
+        using the same wardrobe item multiple times within a single outfit.
+
+        Args:
+            images: A list of tuples, each containing a PIL Image of a wardrobe item
+                    and its corresponding clothing type string.
+            wardrobe_object_names: A list of object names for each wardrobe item.
+            sampled_outfit_ids: A list of outfit IDs to evaluate, typically pre-sampled randomly.
+            qdrant: An instance of the QdrantService for vector database operations.
+            limit_outfits: The maximum number of recommended outfits to return.
+
+        Returns:
+            A list of `RecommendedOutfit` objects, sorted by their completeness
+            score in descending order.
+        """
+        logger.info(
+            f"Starting new outfit recommendation for {len(images)} wardrobe items."
+        )
+        logger.debug(
+            f"Evaluating {len(sampled_outfit_ids)} sampled outfits. Limit: {limit_outfits}"
+        )
+
+        if (
+            not images
+            or not wardrobe_object_names
+            or len(images) != len(wardrobe_object_names)
+        ):
+            logger.error(
+                "Wardrobe images, clothing types, or object names are missing or mismatched."
+            )
+            raise ValueError(
+                "Invalid input: images, and wardrobe_object_names must be non-empty and have same length."
+            )
+
+        # 1. Prepare wardrobe data
+        wardrobe_pil_images = [img for img, _ in images]
+        wardrobe_embeddings = self.get_image_embeddings(wardrobe_pil_images)
+        wardrobe_clothing_types = [ctype for _, ctype in images]
+
+        if wardrobe_embeddings.size == 0:
+            logger.warning("Could not generate embeddings for wardrobe images.")
+            return []
+
+        ranked_outfits = []
+
+        # 2. Iterate through each sampled outfit
+        for outfit_id in sampled_outfit_ids:
+            logger.debug(f"Processing candidate outfit: {outfit_id}")
+
+            outfit_item_records = qdrant.get_outfit_vectors(outfit_id)
+            if not outfit_item_records:
+                logger.debug(f"No item records found for outfit {outfit_id}, skipping.")
+                continue
+
+            outfit_item_embeddings = np.array([r.vector for r in outfit_item_records])
+            outfit_item_ids = [r.id for r in outfit_item_records]
+
+            # Ensure payload and clothing_type exist
+            outfit_item_clothing_types = [
+                r.payload.get("clothing_type", "unknown") if r.payload else "unknown"
+                for r in outfit_item_records
+            ]
+
+            matched_items = []
+            outfit_scores = []
+            used_wardrobe_indices = set()
+
+            # 3. For each item in the outfit, find the best match in the wardrobe
+            for i in range(len(outfit_item_ids)):
+                outfit_item_id = outfit_item_ids[i]
+                outfit_item_embedding = outfit_item_embeddings[i]
+                outfit_item_clothing_type = outfit_item_clothing_types[i]
+
+                best_match_score = -1.0
+                best_wardrobe_idx = -1
+
+                # Search for a matching wardrobe item of the same type
+                for j in range(len(wardrobe_embeddings)):
+                    if (
+                        wardrobe_clothing_types[j] == outfit_item_clothing_type
+                        and j not in used_wardrobe_indices
+                    ):
+                        wardrobe_embedding = wardrobe_embeddings[j]
+                        similarity_score = np.dot(
+                            wardrobe_embedding, outfit_item_embedding
+                        )
+
+                        if similarity_score > best_match_score:
+                            best_match_score = similarity_score
+                            best_wardrobe_idx = j
+
+                # If a match was found, record it and mark wardrobe item as used for this outfit
+                if best_wardrobe_idx != -1:
+                    used_wardrobe_indices.add(best_wardrobe_idx)
+                    outfit_scores.append(best_match_score)
+
+                    matched_items.append(
+                        MatchedItem(
+                            outfit_item_id=str(outfit_item_id),
+                            wardrobe_image_index=int(best_wardrobe_idx),
+                            wardrobe_image_object_name=str(
+                                wardrobe_object_names[best_wardrobe_idx]
+                            ),
+                            score=float(best_match_score),
+                        )
+                    )
+                else:
+                    logger.debug(
+                        f"No unused wardrobe item of type '{outfit_item_clothing_type}' found for outfit {outfit_id}"
+                    )
+                    outfit_scores.append(-10000)
+
+            # 4. Calculate completeness score for the outfit
+            if outfit_scores:
+                completeness_score = float(np.mean(outfit_scores))
+            else:
+                completeness_score = 0.0
+
+            # Only add outfits that have at least one match
+            if matched_items:
+                ranked_outfits.append(
+                    RecommendedOutfit(
+                        outfit_id=outfit_id,
+                        completeness_score=completeness_score,
+                        matches=matched_items,
+                    )
+                )
+
+        # 5. Sort outfits by score and return top results
+        ranked_outfits.sort(key=lambda x: x.completeness_score, reverse=True)
+        result = ranked_outfits[:limit_outfits]
+
+        logger.info(
+            f"Outfit recommendation V2 completed: returning {len(result)} outfits."
+        )
+        if result:
+            logger.debug(
+                f"Best recommendation score: {result[0].completeness_score:.3f}"
+            )
+
+        return result
 
     async def find_similar_outfit(
         self,

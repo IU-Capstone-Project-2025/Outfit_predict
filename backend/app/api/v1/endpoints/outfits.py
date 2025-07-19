@@ -280,36 +280,38 @@ async def search_similar_outfits(
     try:
         # 1. Get all wardrobe images from the database
         logger.debug("Retrieving user's wardrobe images from database")
-        wardrobe_images = await crud_image.list_images(
+        wardrobe_images_db = await crud_image.list_images(
             db, current_user.id, skip=0, limit=1000
         )  # Assume 1000 is enough
 
-        if not wardrobe_images:
+        if not wardrobe_images_db:
             logger.warning(f"No wardrobe images found for user {current_user.email}")
             raise HTTPException(status_code=404, detail="No wardrobe images found.")
 
-        logger.info(f"Found {len(wardrobe_images)} wardrobe images for analysis")
+        logger.info(f"Found {len(wardrobe_images_db)} wardrobe images for analysis")
 
-        # 2. Load images from MinIO and convert to PIL format
-        logger.debug("Loading images from MinIO storage")
-        pil_images = []
-        valid_wardrobe_items = []
+        # 2. Load images from MinIO and prepare data for the new function
+        logger.debug("Loading images from MinIO storage and preparing typed data")
+        wardrobe_data = []
+        wardrobe_object_names = []
 
-        for db_image in wardrobe_images:
+        for db_image in wardrobe_images_db:
             try:
                 obj = minio.get_stream(db_image.object_name)
                 img_bytes = obj.read()
                 obj.close()
                 pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-                pil_images.append(pil_img)
-                valid_wardrobe_items.append(db_image)
+
+                # The new function expects (image, clothing_type) tuples
+                wardrobe_data.append((pil_img, db_image.clothing_type))
+                wardrobe_object_names.append(db_image.object_name)
             except Exception as img_error:
                 logger.warning(
-                    f"Failed to load image {db_image.object_name}: " f"{str(img_error)}"
+                    f"Failed to load image {db_image.object_name}: {str(img_error)}"
                 )
                 continue
 
-        if not pil_images:
+        if not wardrobe_data:
             logger.error(
                 f"Could not load any wardrobe images for user {current_user.email}"
             )
@@ -317,15 +319,24 @@ async def search_similar_outfits(
                 status_code=400, detail="Could not load any wardrobe images."
             )
 
-        logger.info(f"Successfully loaded {len(pil_images)} images for analysis")
+        logger.info(f"Successfully loaded {len(wardrobe_data)} images for analysis")
 
-        # 3. Find similar outfits using the new two-stage algorithm
-        logger.debug("Starting ML-based outfit similarity search")
-        wardrobe_object_names = [item.object_name for item in valid_wardrobe_items]
+        # 3. Sample 50 random outfit IDs from the database
+        logger.debug("Sampling 50 random outfits from the database")
+        all_outfit_ids = await outfit_crud.get_all_outfit_ids(db)
+        if not all_outfit_ids:
+            logger.warning("No outfits found in the database to sample from.")
+            return []
 
-        recommended_outfits = await image_search.find_similar_outfit(
-            images=pil_images,
+        sampled_ids = outfit_crud.sample_outfit_ids(all_outfit_ids, 50)
+        logger.info(f"Sampled {len(sampled_ids)} outfits for evaluation.")
+
+        # 4. Find similar outfits using the new V2 algorithm
+        logger.debug("Starting ML-based outfit similarity search with V2 algorithm")
+        recommended_outfits = await image_search.find_similar_outfit_v2(
+            images=wardrobe_data,
             wardrobe_object_names=wardrobe_object_names,
+            sampled_outfit_ids=sampled_ids,
             qdrant=qdrant,
         )
 
@@ -462,73 +473,74 @@ async def search_similar_outfits_subset(
             detail="Provide at least one of: object_names or image_ids.",
         )
 
-    # Fetch images from DB
-    wardrobe_images = []
+    # Fetch images from DB and prepare wardrobe data
+    wardrobe_data = []
     wardrobe_object_names = []
+
+    image_identifiers = []
     if body.object_names:
-        # By object_name
-        for obj_name in body.object_names:
-            img = await db.execute(
+        image_identifiers = body.object_names
+        id_type = "object_name"
+    else:
+        image_identifiers = body.image_ids  # type:ignore
+        id_type = "image_id"
+
+    for identifier in image_identifiers:
+        db_image = None
+        if id_type == "object_name":
+            res = await db.execute(
                 select(crud_image.Image).where(
-                    crud_image.Image.object_name == obj_name,
+                    crud_image.Image.object_name == identifier,
                     crud_image.Image.user_id == current_user.id,
                 )
             )
-            img = img.scalar_one_or_none()
-            if img:
-                wardrobe_object_names.append(img.object_name)
-                try:
-                    obj = minio.get_stream(img.object_name)
-                    img_bytes = obj.read()
-                    obj.close()
-                    pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-                    wardrobe_images.append(pil_img)
-                except Exception as e:
-                    logger.warning(f"Failed to load image {img.object_name}: {str(e)}")
-            else:
-                logger.warning(
-                    f"Image with object_name {obj_name} not found for user "
-                    f"{current_user.email}"
-                )
-    elif body.image_ids:
-        # By image_id
-        for img_id in body.image_ids:
+            db_image = res.scalar_one_or_none()
+        elif id_type == "image_id":
             try:
-                uuid_id = UUID(img_id)
-            except Exception:
-                logger.warning(f"Invalid image_id format: {img_id}")
+                img_uuid = UUID(identifier)
+                db_image = await crud_image.get_image(db, img_uuid, current_user.id)
+            except ValueError:
+                logger.warning(f"Invalid UUID format for image_id: {identifier}")
                 continue
-            img = await crud_image.get_image(db, uuid_id, current_user.id)
-            if img:
-                wardrobe_object_names.append(img.object_name)
-                try:
-                    obj = minio.get_stream(img.object_name)
-                    img_bytes = obj.read()
-                    obj.close()
-                    pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-                    wardrobe_images.append(pil_img)
-                except Exception as e:
-                    logger.warning(f"Failed to load image {img.object_name}: {str(e)}")
-            else:
-                logger.warning(
-                    f"Image with id {img_id} not found for user "
-                    f"{current_user.email}"
-                )
 
-    if not wardrobe_images:
+        if db_image:
+            try:
+                obj = minio.get_stream(db_image.object_name)
+                img_bytes = obj.read()
+                obj.close()
+                pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+                wardrobe_data.append((pil_img, db_image.clothing_type))
+                wardrobe_object_names.append(db_image.object_name)
+            except Exception as e:
+                logger.warning(f"Failed to load image {db_image.object_name}: {str(e)}")
+        else:
+            logger.warning(
+                f"Image with {id_type} '{identifier}' not found for user {current_user.email}"
+            )
+
+    if not wardrobe_data:
         logger.warning(
-            f"No valid wardrobe images found for subset search for user "
-            f"{current_user.email}"
+            f"No valid wardrobe images found for subset search for user {current_user.email}"
         )
         raise HTTPException(status_code=404, detail="No valid wardrobe images found.")
 
-    logger.info(f"Loaded {len(wardrobe_images)} images for subset analysis")
+    logger.info(f"Loaded {len(wardrobe_data)} images for subset analysis")
 
-    # ML search logic (same as /search-similar/)
-    recommended_outfits = await image_search.find_similar_outfit(
-        images=wardrobe_images,
+    # Sample 50 random outfits
+    all_outfit_ids = await outfit_crud.get_all_outfit_ids(db)
+    if not all_outfit_ids:
+        logger.warning("No outfits found in the database to sample from.")
+        return []
+
+    sampled_ids = outfit_crud.sample_outfit_ids(all_outfit_ids, 50)
+    logger.info(f"Sampled {len(sampled_ids)} outfits for evaluation.")
+
+    # ML search logic using V2
+    recommended_outfits = await image_search.find_similar_outfit_v2(
+        images=wardrobe_data,
         wardrobe_object_names=wardrobe_object_names,
-        score_threshold=0.35,
+        sampled_outfit_ids=sampled_ids,
         qdrant=qdrant,
     )
 
@@ -768,6 +780,7 @@ async def split_outfit_to_clothes(
             logger.info(f"Outfit metadata saved to database with ID: {outfit_id}")
 
             # 3. Segment clothing items using FashionSegmentationModel
+            # This returns both segmented images and YOLO-detected clothing class names
             result = segmentation_model.get_segment_images(tmp_path)
             if not result or len(result) == 0:
                 logger.warning(
@@ -789,10 +802,10 @@ async def split_outfit_to_clothes(
 
             logger.info(
                 f"Successfully segmented {len(segmented_clothes)} clothing items for outfit "
-                f"{outfit_id}"
+                f"{outfit_id}: {cloth_names}"
             )
 
-            # 4. Add each detected clothing item to Qdrant
+            # 4. Add each detected clothing item to Qdrant with YOLO-provided clothing types
             clothing_info = []
             for name, cropped_img in zip(cloth_names, segmented_clothes):
                 if cropped_img.size == 0:
@@ -802,10 +815,20 @@ async def split_outfit_to_clothes(
                     continue  # skip empty crops
                 pil_img = Image.fromarray(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
                 image_id = str(uuid.uuid4())
+
+                # Extract base clothing type from YOLO name (remove _0, _1 suffixes)
+                clothing_type = name.split("_")[0] if "_" in name else name
+
                 await image_search.add_image_to_index(
-                    image=pil_img, image_id=image_id, outfit_id=outfit_id, qdrant=qdrant
+                    image=pil_img,
+                    image_id=image_id,
+                    outfit_id=outfit_id,
+                    qdrant=qdrant,
+                    clothing_type=clothing_type,
                 )
-                clothing_info.append({"name": name, "image_id": image_id})
+                clothing_info.append(
+                    {"name": name, "image_id": image_id, "clothing_type": clothing_type}
+                )
 
             logger.info(
                 f"Successfully added {len(clothing_info)} clothing items to Qdrant for outfit "

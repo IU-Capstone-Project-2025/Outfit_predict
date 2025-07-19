@@ -15,10 +15,12 @@ async def create_image(
     description: str | None,
     object_name: str,
     thumbnail_object_name: str | None = None,
+    clothing_type: str | None = None,  # Added clothing_type parameter
 ) -> Image:
     logger.debug(
         f"Creating image for user {user_id}: object_name={object_name}, "
-        f"thumbnail_object_name={thumbnail_object_name}, description={description}"
+        f"thumbnail_object_name={thumbnail_object_name}, description={description}, "
+        f"clothing_type={clothing_type}"
     )
 
     try:
@@ -27,6 +29,7 @@ async def create_image(
             description=description,
             object_name=object_name,
             thumbnail_object_name=thumbnail_object_name,
+            clothing_type=clothing_type,  # Added clothing_type field
         )
         db.add(image)
         await db.commit()

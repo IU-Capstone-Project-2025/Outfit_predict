@@ -13,6 +13,9 @@ class Image(Base):
     description = Column(String(length=255), nullable=True)
     object_name = Column(String(length=512), nullable=False, unique=True)
     thumbnail_object_name = Column(String(length=512), nullable=True)
+    clothing_type = Column(
+        String(length=50), nullable=True
+    )  # Added clothing type field
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
