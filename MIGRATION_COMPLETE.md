@@ -44,7 +44,7 @@ Successfully migrated from self-hosted runners to GitHub-hosted runners and fixe
 
 ### ✅ 5. Workflow Migration
 - **Disabled old workflow**: `cd-self-hosted.yml` → `cd-self-hosted.yml.backup`
-- **Maintained monitoring**: All Dozzle, Grafana, Prometheus services preserved
+- **Maintained monitoring**: Dozzle container log monitoring preserved
 - **Zero downtime transition**: Can switch between workflows as needed
 
 ## Key Improvements
@@ -68,7 +68,7 @@ Successfully migrated from self-hosted runners to GitHub-hosted runners and fixe
 - **Code formatting**: Automated with Black, isort, ESLint
 
 ### 📊 Monitoring & Observability
-- **Retained full monitoring stack**: Dozzle, Grafana, Prometheus, Node Exporter
+- **Retained container log monitoring**: Dozzle for real-time log viewing
 - **Deployment tracking**: Detailed logs and health checks
 - **Automatic notifications**: Can integrate Slack/Discord webhooks
 - **Rollback capability**: Automatic failure recovery

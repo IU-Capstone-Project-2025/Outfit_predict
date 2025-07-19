@@ -177,7 +177,7 @@ git push origin main
    - Container vulnerability scanning
 
 6. **Monitoring Integration**
-   - Preserves all monitoring services (Grafana, Prometheus, Dozzle)
+   - Preserves container log monitoring (Dozzle)
    - Maintains nginx proxy configuration
 
 ### 📁 Deployment Structure
