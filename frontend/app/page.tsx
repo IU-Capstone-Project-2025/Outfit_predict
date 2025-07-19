@@ -36,11 +36,45 @@ export default function OutfitGeneratorMain() {
     }
   }, []);
 
+  // --- Selection state sync ---
+  const [selectedObjectNames, setSelectedObjectNames] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("selectedOutfitItems");
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Sync selection from localStorage on mount, focus, and storage events
+  useEffect(() => {
+    const syncSelection = () => {
+      try {
+        const stored = localStorage.getItem("selectedOutfitItems");
+        const parsed = stored ? JSON.parse(stored) : [];
+        setSelectedObjectNames(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setSelectedObjectNames([]);
+      }
+    };
+    syncSelection();
+    window.addEventListener('focus', syncSelection);
+    window.addEventListener('storage', syncSelection);
+    return () => {
+      window.removeEventListener('focus', syncSelection);
+      window.removeEventListener('storage', syncSelection);
+    };
+  }, []);
+
   useEffect(() => {
     return () => {
       if (fadeOutTimeoutRef.current) {
         clearTimeout(fadeOutTimeoutRef.current);
       }
+      // Clear upload queue
+      uploadQueueRef.current = [];
+      activeUploadsRef.current = 0;
     };
   }, []);
 
@@ -87,20 +121,21 @@ export default function OutfitGeneratorMain() {
       }, handle401Logout)
       if (response.ok) {
         const result = await response.json()
-        showUploadMessage(`Image "${file.name}" uploaded successfully!`)
-        // --- PATCH: Only add the uploaded image (from result) to the selection ---
-        if (result && result.object_name) {
-          let prevSelected = [];
-          try {
-            prevSelected = JSON.parse(localStorage.getItem("selectedOutfitItems") || "[]");
-            if (!Array.isArray(prevSelected)) prevSelected = [];
-          } catch (e) { prevSelected = []; }
-          if (!prevSelected.includes(result.object_name)) {
-            prevSelected.push(result.object_name);
-            localStorage.setItem("selectedOutfitItems", JSON.stringify(prevSelected));
-          }
+        if (!result || !result.object_name) {
+          showUploadMessage("Upload succeeded but no object_name returned. Please refresh the page.", 'error');
+          return;
         }
-        // --- END PATCH ---
+        showUploadMessage(`Image "${file.name}" uploaded successfully!`)
+        let prevSelected = [];
+        try {
+          prevSelected = JSON.parse(localStorage.getItem("selectedOutfitItems") || "[]");
+          if (!Array.isArray(prevSelected)) prevSelected = [];
+        } catch (e) { prevSelected = []; }
+        if (!prevSelected.includes(result.object_name)) {
+          prevSelected.push(result.object_name);
+          localStorage.setItem("selectedOutfitItems", JSON.stringify(prevSelected));
+        }
+        setSelectedObjectNames(prevSelected);
       } else {
         showUploadMessage(`Failed to upload "${file.name}".`)
       }
@@ -166,7 +201,7 @@ export default function OutfitGeneratorMain() {
       return;
     }
     setRecommendationError(null); // Always clear previous error on new attempt
-    const selectedObjectNames = JSON.parse(localStorage.getItem("selectedOutfitItems") || "[]");
+    // Use the synced state for selection
     if (!selectedObjectNames || selectedObjectNames.length === 0) {
       showUploadMessage("Please select at least one wardrobe item to generate outfits.", 'error');
       return;
@@ -225,7 +260,7 @@ export default function OutfitGeneratorMain() {
     } finally {
       setLoadingRecommendations(false)
     }
-  }, [showUploadMessage, user])
+  }, [showUploadMessage, user, selectedObjectNames])
 
   // Add a helper component for image with placeholder
   type ImageWithPlaceholderProps = {
