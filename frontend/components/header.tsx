@@ -15,7 +15,7 @@ export function Header() {
   const isActive = (path: string) => pathname === path
 
   return (
-    <header className="bg-black backdrop-blur-md border-b border-gray-700/50 sticky top-0 z-50 w-full">
+    <header className="bg-black backdrop-blur-md border-b border-neutral-800 sticky top-0 z-50 w-full">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full px-6 py-5">
         <div className="flex flex-row items-center justify-between w-full md:w-auto">
           {/* Logo */}
@@ -35,18 +35,18 @@ export function Header() {
             {user ? (
               <div className="relative">
                 <button
-                  className="flex items-center space-x-3 px-4 py-2 rounded-full hover:bg-gray-800/50 focus:outline-none transition-all duration-200"
+                  className="flex items-center space-x-3 px-4 py-2 rounded-full bg-neutral-800 focus:outline-none transition-all duration-200"
                   onClick={() => setMenuOpen((v) => !v)}
                 >
                   <span className="font-semibold text-white truncate max-w-[120px]">
                     {user.email?.split("@")[0] || "User"}
                   </span>
                   <ChevronDown
-                    className={`w-4 h-4 text-gray-300 transition-transform duration-200 ${menuOpen ? "rotate-180" : ""}`}
+                    className={`w-4 h-4 text-white transition-transform duration-200 ${menuOpen ? "rotate-180" : ""}`}
                   />
                 </button>
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-2xl shadow-xl z-10">
+                  <div className="absolute right-0 mt-2 w-48 bg-neutral-900 backdrop-blur-sm border border-neutral-700 rounded-2xl shadow-xl z-10">
                     <button
                       className="w-full text-left px-6 py-4 text-red-400 hover:bg-red-500/10 rounded-2xl transition-colors font-medium"
                       onClick={() => {
@@ -61,7 +61,7 @@ export function Header() {
               </div>
             ) : (
               <div className="flex items-center space-x-3">
-                <Link href="/login" className="text-gray-300 hover:text-white transition-colors font-medium">
+                <Link href="/login" className="text-white hover:text-white transition-colors font-medium">
                   Login
                 </Link>
                 <Link href="/signup">

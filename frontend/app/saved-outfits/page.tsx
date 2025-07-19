@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
-import { Heart, ArrowLeft, Trash2, Eye } from "lucide-react"
+import { Heart, ArrowLeft, Trash2, Eye, Download } from "lucide-react"
 import Link from "next/link"
 import { apiUrl, fetchWithAuth } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { ImagePreviewModal, ProtectedImage } from "@/components/ImagePreviewModal"
+import { toPng } from "html-to-image";
+import React, { useRef } from "react";
 
 interface MatchedItem {
   wardrobe_image_index: number
@@ -69,6 +71,47 @@ export default function SavedOutfitsPage() {
     description?: string
   } | null>(null)
   const [wardrobeUrls, setWardrobeUrls] = useState<Record<string, any>>({})
+
+  // Ref array for card elements
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  // Download handler using a cloned node
+  const handleDownload = async (idx: number) => {
+    const card = cardRefs.current[idx];
+    if (!card) return;
+    try {
+      // Clone the card node
+      const clone = card.cloneNode(true) as HTMLElement;
+
+      // Remove unwanted elements from the clone
+      clone.querySelectorAll('.saved-label-download-hide').forEach(el => el.remove());
+      clone.querySelectorAll('.delete-button-download-hide').forEach(el => el.remove());
+      clone.querySelectorAll('.download-button-download-hide').forEach(el => el.remove());
+
+      // Set background color to gray-950 for the clone (for download only)
+      clone.style.backgroundColor = '#111827'; // Tailwind gray-900
+
+      // Create a container to hold the clone (offscreen)
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.appendChild(clone);
+      document.body.appendChild(container);
+
+      // Export the clone as image
+      const dataUrl = await toPng(clone);
+
+      // Clean up
+      document.body.removeChild(container);
+
+      // Download
+      const link = document.createElement("a");
+      link.download = `outfit-${idx + 1}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error("Failed to download image", err);
+    }
+  };
 
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -249,8 +292,8 @@ export default function SavedOutfitsPage() {
         </div>
 
         {/* Stats */}
-        <div className="max-w-2xl mx-auto mb-12">
-          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
+        <div className="flex justify-center mb-12">
+          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-4 text-center max-w-xs w-full">
             <div className="text-3xl font-bold text-white mb-2">{savedOutfits.length}</div>
             <div className="text-gray-400">Saved Outfits</div>
           </div>
@@ -283,7 +326,13 @@ export default function SavedOutfitsPage() {
           <div className="max-w-6xl mx-auto">
             <div className="space-y-12">
               {savedOutfits.map((savedOutfit, idx) => (
-                <div key={savedOutfit.id} className="bg-gray-900/80 rounded-3xl p-8 border border-gray-700/50">
+                <div
+                  key={savedOutfit.id}
+                  ref={el => {
+                    cardRefs.current[idx] = el;
+                  }}
+                  className="bg-gray-900/80 rounded-3xl p-8 border border-gray-700/50 relative"
+                >
                   <div className="flex flex-col lg:flex-row gap-10 items-start">
                     {/* Outfit Image */}
                     <div className="relative w-72 h-72 flex-shrink-0 mx-auto lg:mx-0">
@@ -317,26 +366,28 @@ export default function SavedOutfitsPage() {
                           className="w-full h-full object-contain rounded-3xl"
                         />
                       </div>
-                                             {/* Labels */}
-                       <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2 z-20">
-                         <span className="text-white text-sm font-medium flex items-center gap-2">
-                           <Heart className="w-4 h-4 fill-current" />
-                           Saved
-                         </span>
-                       </div>
+                      {/* Labels */}
+                      <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2 z-20 saved-label-download-hide">
+                        <span className="text-white text-sm font-medium flex items-center gap-2">
+                          <Heart className="w-4 h-4 fill-current" />
+                          Saved
+                        </span>
+                      </div>
                     </div>
 
                     {/* Outfit Details */}
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-6">
                         <h3 className="text-2xl font-bold text-white">Matched Wardrobe Items</h3>
-                                                 <Button
-                           onClick={() => deleteSavedOutfit(savedOutfit.id)}
-                           className="bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 rounded-full p-2 transition-all duration-200"
-                           title="Remove from saved"
-                         >
-                           <Trash2 className="w-4 h-4" />
-                         </Button>
+                        <Button
+                          onClick={() => deleteSavedOutfit(savedOutfit.id)}
+                          className="bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 rounded-full p-2 transition-all duration-200 delete-button-download-hide"
+                          title="Remove from saved"
+                          variant="ghost"
+                          size="icon"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
 
                       {/* Matches Grid */}
@@ -402,6 +453,18 @@ export default function SavedOutfitsPage() {
                         })}
                       </div>
                     </div>
+                  </div>
+                  {/* Download Button at bottom right */}
+                  <div className="absolute bottom-6 right-6 download-button-download-hide">
+                    <Button
+                      onClick={() => handleDownload(idx)}
+                      className="bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 rounded-full p-2 transition-all duration-200"
+                      title="Download as image"
+                      variant="ghost"
+                      size="icon"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
