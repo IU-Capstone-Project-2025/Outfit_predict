@@ -480,7 +480,7 @@ async def search_similar_outfits_subset(
     recommended_outfits = await image_search.find_similar_outfit(
         images=wardrobe_images,
         wardrobe_object_names=wardrobe_object_names,
-        score_threshold=0.5,
+        score_threshold=0.35,
         qdrant=qdrant,
     )
 

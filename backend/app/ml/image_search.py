@@ -169,7 +169,7 @@ class ImageSearchEngine:
         images: List[Image.Image],
         wardrobe_object_names: List[str],
         qdrant: QdrantService,
-        score_threshold: float = 0.7,
+        score_threshold: float = 0.35,
         limit_outfits: int = 5,
     ) -> List[RecommendedOutfit]:
         """
