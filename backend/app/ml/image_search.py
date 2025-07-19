@@ -1,8 +1,10 @@
+import os
+import tempfile
 from typing import List, Tuple, Union
 
 import numpy as np
 from app.core.logging import get_logger
-from app.ml.encoding_models import DinoV2ImageEncoder
+from app.ml.encoding_models import DinoV2ImageEncoder, FashionClipEncoder
 from app.schemas.outfit import MatchedItem, RecommendedOutfit
 from app.storage.qdrant_client import QdrantService
 from PIL import Image
@@ -170,7 +172,7 @@ class ImageSearchEngine:
         wardrobe_object_names: List[str],
         qdrant: QdrantService,
         score_threshold: float = 0.35,
-        limit_outfits: int = 5,
+        limit_outfits: int = 15,
     ) -> List[RecommendedOutfit]:
         """
         Finds the best-matching outfits from the database for a given set of wardrobe items.
@@ -316,3 +318,47 @@ class ImageSearchEngine:
         except Exception as e:
             logger.error(f"Error in outfit recommendation: {str(e)}")
             raise
+
+    async def assign_style_labels(
+        self,
+        outfit_images: List[Image.Image],
+        fashion_encoder: FashionClipEncoder,
+    ) -> List[str]:
+        """
+        Assign style labels to a list of outfit images using FashionCLIP.
+
+        Args:
+            outfit_images: List of PIL Images to classify
+            fashion_encoder: Pre-initialized FashionClipEncoder instance
+
+        Returns:
+            List of style labels for each image
+        """
+        from app.ml.style_classification import identify_style
+
+        if not outfit_images:
+            return []
+
+        # Save PIL images to temporary files since identify_style expects file paths
+        temp_paths = []
+        try:
+            for i, pil_image in enumerate(outfit_images):
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".jpg"
+                ) as tmp_file:
+                    pil_image.save(tmp_file.name, "JPEG")
+                    temp_paths.append(tmp_file.name)
+
+            # Get style predictions
+            style_labels = identify_style(fashion_encoder, temp_paths, threshold=0.2)
+
+            logger.info(f"Assigned style labels: {style_labels}")
+            return style_labels
+
+        finally:
+            # Clean up temporary files
+            for temp_path in temp_paths:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass

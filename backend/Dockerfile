@@ -25,10 +25,20 @@ snapshot_download(
   library_name="transformers",
   library_version="4.x"
 )
+snapshot_download(
+  "patrickjohncyh/fashion-clip",
+  cache_dir="/root/.cache/huggingface/hub",
+  library_name="transformers",
+  library_version="4.x"
+)
 EOF
 
 RUN python -c "import torch; \
     torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')"
+
+RUN python -c "from transformers import CLIPModel, CLIPProcessor; \
+    CLIPModel.from_pretrained('patrickjohncyh/fashion-clip'); \
+    CLIPProcessor.from_pretrained('patrickjohncyh/fashion-clip')"
 
 #--------------------- STAGE 2: Final Image ---------------------
 FROM python:3.12-slim
