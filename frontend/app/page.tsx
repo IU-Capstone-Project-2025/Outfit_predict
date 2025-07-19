@@ -1,10 +1,10 @@
 "use client"
 
 import React, { useState, useCallback, useRef } from "react"
-import { Upload, Sparkles } from "lucide-react"
+import { Upload, Sparkles, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
-import { getApiBaseUrl, apiUrl } from "@/lib/utils"
+import { getApiBaseUrl, apiUrl, fetchWithAuth } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
@@ -57,8 +57,68 @@ export default function OutfitGeneratorMain() {
   const [selectedStyles, setSelectedStyles] = useState<string[]>([
     "formal", "streetwear", "minimalist", "athleisure", "other"
   ]); // All styles selected by default
+  const [savedOutfits, setSavedOutfits] = useState<Set<string>>(new Set())
+  const [savingOutfits, setSavingOutfits] = useState<Set<string>>(new Set())
 
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+
+  // Helper to handle logout and redirect
+  const handle401Logout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user_email')
+      localStorage.removeItem('selectedOutfitItems')
+    }
+    router.replace('/login')
+  }
+
+  // Save outfit function
+  const saveOutfit = useCallback(async (recommendation: any) => {
+    if (!user || !recommendation) return
+
+    const outfitId = recommendation.outfit.id
+    setSavingOutfits(prev => new Set(prev).add(outfitId))
+
+    try {
+      const saveData = {
+        outfit_id: outfitId,
+        completeness_score: recommendation.recommendation.completeness_score,
+        matches: recommendation.recommendation.matches
+      }
+
+      const response = await fetchWithAuth(
+        apiUrl('v1/saved-outfits/'),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(saveData)
+        },
+        handle401Logout
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        if (response.status === 409) {
+          throw new Error("This outfit is already saved!")
+        }
+        throw new Error(errorData.detail || "Failed to save outfit")
+      }
+
+      setSavedOutfits(prev => new Set(prev).add(outfitId))
+      showUploadMessage("Outfit saved successfully!")
+    } catch (err: any) {
+      console.error("Error saving outfit:", err)
+      showUploadMessage(err.message || "Failed to save outfit. Please try again.")
+    } finally {
+      setSavingOutfits(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(outfitId)
+        return newSet
+      })
+    }
+  }, [user, token, router])
 
   const showUploadMessage = useCallback((message: string) => {
     if (fadeOutTimeoutRef.current) {
@@ -219,12 +279,24 @@ export default function OutfitGeneratorMain() {
       }));
       setRecommendations(recsWithUrls)
       setShowRecommendations(true)
+
+              // Check which outfits are already saved
+        try {
+          const savedResponse = await fetchWithAuth(apiUrl('v1/saved-outfits/'), {}, handle401Logout)
+          if (savedResponse.ok) {
+            const savedData = await savedResponse.json()
+            const savedIds = new Set<string>(savedData.map((saved: any) => saved.outfit_id))
+            setSavedOutfits(savedIds)
+          }
+        } catch (err) {
+          console.warn("Failed to fetch saved outfits:", err)
+        }
     } catch (err) {
       setRecommendationError("Failed to generate outfits. Please try again.")
     } finally {
       setLoadingRecommendations(false)
     }
-  }, [showUploadMessage, token, user])
+  }, [showUploadMessage, token, user, handle401Logout])
 
 
   return (
@@ -392,6 +464,30 @@ export default function OutfitGeneratorMain() {
                           <span className="text-black text-xs font-semibold">
                             {(rec.outfit?.style || "other").charAt(0).toUpperCase() + (rec.outfit?.style || "other").slice(1)}
                           </span>
+                        </div>
+                        {/* Save button */}
+                        <div className="absolute bottom-4 right-4 z-20">
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              saveOutfit(rec)
+                            }}
+                            disabled={savingOutfits.has(rec.outfit.id) || savedOutfits.has(rec.outfit.id)}
+                            className={`rounded-full p-3 transition-all duration-200 ${
+                              savedOutfits.has(rec.outfit.id)
+                                ? "bg-black text-white cursor-default"
+                                : savingOutfits.has(rec.outfit.id)
+                                ? "bg-white/70 text-gray-500 cursor-not-allowed"
+                                : "bg-white/90 text-black hover:bg-white hover:scale-110 cursor-pointer"
+                            }`}
+                            title={savedOutfits.has(rec.outfit.id) ? "Already saved" : "Save outfit"}
+                          >
+                            {savingOutfits.has(rec.outfit.id) ? (
+                              <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Heart className={`w-5 h-5 ${savedOutfits.has(rec.outfit.id) ? 'fill-current' : ''}`} />
+                            )}
+                          </Button>
                         </div>
                       </div>
 
