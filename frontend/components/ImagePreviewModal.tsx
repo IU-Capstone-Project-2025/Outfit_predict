@@ -1,5 +1,6 @@
 import React from "react";
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { getCachedImage, setCachedImage } from "@/lib/ImageCache";
 
 interface ImagePreviewModalProps {
   open: boolean;
@@ -16,6 +17,13 @@ function ProtectedImage({ src, alt, token, ...props }: { src: string, alt?: stri
   React.useEffect(() => {
     let isMounted = true;
     if (!src) return;
+
+    // Check cache first
+    const cachedUrl = getCachedImage(src);
+    if (cachedUrl) {
+      setImgUrl(cachedUrl);
+      return;
+    }
 
     // If the image is public or no token is provided, use the src directly
     const isProtectedApi = src.startsWith("/api") || src.includes("/api/");
@@ -34,7 +42,11 @@ function ProtectedImage({ src, alt, token, ...props }: { src: string, alt?: stri
         return res.blob();
       })
       .then(blob => {
-        if (isMounted) setImgUrl(URL.createObjectURL(blob));
+        if (isMounted) {
+          const blobUrl = URL.createObjectURL(blob);
+          setCachedImage(src, blobUrl); // Cache the blob URL
+          setImgUrl(blobUrl);
+        }
       })
       .catch(() => {
         if (isMounted) setImgUrl("/placeholder.svg");
@@ -42,7 +54,7 @@ function ProtectedImage({ src, alt, token, ...props }: { src: string, alt?: stri
 
     return () => {
       isMounted = false;
-      if (imgUrl) URL.revokeObjectURL(imgUrl);
+      // Do not revoke object URL on unmount to allow caching
     };
   }, [src, token]);
 
