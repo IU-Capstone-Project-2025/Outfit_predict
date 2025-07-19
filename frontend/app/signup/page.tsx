@@ -22,7 +22,13 @@ export default function SignupPage() {
       await signup(email, password)
       router.replace("/about")
     } catch (err: any) {
-      setError(err.message || "Signup failed")
+      if (typeof err === 'string') {
+        setError(err);
+      } else if (err && typeof err === 'object' && 'message' in err) {
+        setError((err as any).message || "Signup failed");
+      } else {
+        setError("Signup failed. Please check your network connection and try again.");
+      }
     } finally {
       setLoading(false)
     }

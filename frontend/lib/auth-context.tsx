@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { getApiBaseUrl, apiUrl } from "./utils"
+import { getApiBaseUrl, apiUrl, fetchWithAuth } from "./utils"
 
 interface User {
   email: string
@@ -27,6 +27,13 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter();
+
+  // Helper to handle logout and redirect
+  const handle401Logout = () => {
+    setUser(null);
+    router.replace('/login');
+  };
 
   useEffect(() => {
     // On mount, check for token
@@ -35,9 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function validateSession() {
       if (token) {
         try {
-          const res = await fetch(apiUrl('v1/auth/me'), {
-            headers: { Authorization: `Bearer ${token}` },
-          })
+          const res = await fetchWithAuth(apiUrl('v1/auth/me'), {}, handle401Logout)
           if (!res.ok) throw new Error('Invalid session')
           const data = await res.json()
           // Optionally update email from backend
