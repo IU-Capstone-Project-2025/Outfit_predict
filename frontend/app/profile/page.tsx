@@ -307,47 +307,43 @@ export default function WardrobePage() {
             </div>
 
             {/* Stats Section */}
-            <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
-              <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
+            <div className="flex justify-center mb-12">
+              <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-4 text-center max-w-xs w-full">
                 <div className="text-3xl font-bold text-white mb-2">{images.length}</div>
                 <div className="text-gray-400">Wardrobe Items</div>
-              </div>
-              <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
-                <div className="text-3xl font-bold text-white mb-2">42</div>
-                <div className="text-gray-400">Outfits Generated</div>
-              </div>
-              <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
-                <div className="text-3xl font-bold text-white mb-2">15</div>
-                <div className="text-gray-400">Days Active</div>
               </div>
             </div>
 
             {/* Quick Actions */}
-            <div className="flex justify-center gap-4 mb-12">
-              <Link href="/">
-                <Button className="bg-white text-black hover:bg-gray-200 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
-                  <Camera className="w-5 h-5" />
-                  Upload New Items
+            <div className="flex flex-col items-center mb-12 gap-2">
+              <div className="flex justify-center gap-4 w-full">
+                <Link href="/">
+                  <Button className="bg-white text-black hover:bg-gray-200 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
+                    <Camera className="w-5 h-5" />
+                    Upload New Items
+                  </Button>
+                </Link>
+                <Link href="/saved-outfits">
+                  <Button className="bg-gray-800 text-white hover:bg-gray-700 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
+                    <Heart className="w-5 h-5" />
+                    Saved Outfits
+                  </Button>
+                </Link>
+              </div>
+              <div className="flex justify-center gap-4 w-full mt-2">
+                <Button
+                  onClick={handleSelectAll}
+                  className="bg-gray-700 text-white hover:bg-gray-600 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2"
+                >
+                  Select All
                 </Button>
-              </Link>
-              <Link href="/saved-outfits">
-                <Button className="bg-gray-800 text-white hover:bg-gray-700 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
-                  <Heart className="w-5 h-5" />
-                  Saved Outfits
+                <Button
+                  onClick={handleDeselectAll}
+                  className="bg-gray-700 text-white hover:bg-gray-600 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2"
+                >
+                  Deselect All
                 </Button>
-              </Link>
-              <Button
-                onClick={handleSelectAll}
-                className="bg-gray-700 text-white hover:bg-gray-600 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2"
-              >
-                Select All
-              </Button>
-              <Button
-                onClick={handleDeselectAll}
-                className="bg-gray-700 text-white hover:bg-gray-600 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2"
-              >
-                Deselect All
-              </Button>
+              </div>
             </div>
 
             {/* Wardrobe Section */}

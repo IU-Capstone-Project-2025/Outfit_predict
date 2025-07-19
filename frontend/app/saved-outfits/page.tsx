@@ -292,8 +292,8 @@ export default function SavedOutfitsPage() {
         </div>
 
         {/* Stats */}
-        <div className="max-w-2xl mx-auto mb-12">
-          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-6 text-center">
+        <div className="flex justify-center mb-12">
+          <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-3xl p-4 text-center max-w-xs w-full">
             <div className="text-3xl font-bold text-white mb-2">{savedOutfits.length}</div>
             <div className="text-gray-400">Saved Outfits</div>
           </div>
