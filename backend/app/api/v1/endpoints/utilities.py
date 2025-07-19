@@ -30,7 +30,7 @@ async def get_object_url(
         current_user (User, optional): Current user objetc. Defaults to Depends(get_current_user).
 
     Returns:
-        ObjectURL: ObjectURL object with the url of the image
+        ObjectURL: ObjectURL object with the url and thumbnail_url of the image
     """
     logger.info(
         f"Retrieving the image url for {current_user.email} (object_name: {object_name})"
@@ -50,7 +50,14 @@ async def get_object_url(
             logger.debug(f"Image {object_name} not found for user {current_user.id}")
             raise HTTPException(status_code=404, detail="Image not found")
 
-        return ObjectURL(url=build_url(request, "get_image_file", image_id=image.id))
+        return ObjectURL(
+            url=build_url(request, "get_image_file", image_id=image.id),
+            thumbnail_url=(
+                build_url(request, "get_image_thumbnail", image_id=image.id)
+                if image.thumbnail_object_name
+                else None
+            ),
+        )
 
     except Exception as e:
         logger.error(

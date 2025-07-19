@@ -11,11 +11,11 @@ import { useAuth } from "@/lib/auth-context"
 import { ImagePreviewModal, ProtectedImage } from "@/components/ImagePreviewModal";
 
 // Add a helper component for image with placeholder
-function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
-  const [loaded, setLoaded] = React.useState(false);
+function ImageWithPlaceholder({ src, thumbnailSrc, alt, token, className, ...props }: any) {
+  const [thumbnailLoaded, setThumbnailLoaded] = React.useState(false);
   return (
     <>
-      {!loaded && (
+      {!thumbnailLoaded && (
         <img
           src="/placeholder.svg"
           alt="placeholder"
@@ -25,10 +25,11 @@ function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
       )}
       <ProtectedImage
         src={src}
+        thumbnailSrc={thumbnailSrc}
         alt={alt}
         token={token}
-        className={className + (loaded ? '' : ' invisible')}
-        onLoad={() => setLoaded(true)}
+        className={className + (thumbnailLoaded ? '' : ' invisible')}
+        onThumbnailLoad={() => setThumbnailLoaded(true)}
         {...props}
       />
     </>
@@ -49,6 +50,7 @@ export default function OutfitGeneratorMain() {
   const router = useRouter()
   const [previewImage, setPreviewImage] = useState<{
     src: string;
+    thumbnailSrc?: string;
     alt?: string;
     description?: string;
   } | null>(null);
@@ -184,6 +186,7 @@ export default function OutfitGeneratorMain() {
         const matchesSrc = rec.recommendation?.matches || [];
         const matchesWithUrls = await Promise.all(matchesSrc.map(async (match: any) => {
           let wardrobe_image_url = undefined;
+          let wardrobe_image_thumbnail_url = undefined;
           let wardrobe_image_description = undefined;
           if (match.wardrobe_image_object_name) {
             try {
@@ -195,6 +198,7 @@ export default function OutfitGeneratorMain() {
               if (urlRes.ok) {
                 const urlData = await urlRes.json();
                 wardrobe_image_url = urlData.url;
+                wardrobe_image_thumbnail_url = urlData.thumbnail_url;
                 wardrobe_image_description = urlData.description;
               }
             } catch (e) {
@@ -204,6 +208,7 @@ export default function OutfitGeneratorMain() {
           return {
             ...match,
             wardrobe_image_url: wardrobe_image_url || "/placeholder.svg",
+            wardrobe_image_thumbnail_url: wardrobe_image_thumbnail_url,
             wardrobe_image_description: wardrobe_image_description,
           };
         }));
@@ -256,6 +261,7 @@ export default function OutfitGeneratorMain() {
         open={!!previewImage}
         onClose={() => setPreviewImage(null)}
         src={previewImage?.src || ""}
+        thumbnailSrc={previewImage?.thumbnailSrc}
         alt={previewImage?.alt}
         description={previewImage?.description}
         token={token}
@@ -367,11 +373,13 @@ export default function OutfitGeneratorMain() {
                           className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
                           onClick={() => setPreviewImage({
                             src: rec.outfit.url || "/placeholder.svg",
-                            alt: `Generated Outfit #${idx + 1}`
+                            alt: `Generated Outfit #${idx + 1}`,
+                            thumbnailSrc: rec.outfit.thumbnail_url
                           })}
                         >
                           <ImageWithPlaceholder
                             src={rec.outfit.url || "/placeholder.svg"}
+                            thumbnailSrc={rec.outfit.thumbnail_url}
                             alt="Generated Outfit"
                             token={token}
                             className="w-full h-full object-contain rounded-3xl"
@@ -409,12 +417,14 @@ export default function OutfitGeneratorMain() {
                                   className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
                                   onClick={() => setPreviewImage({
                                     src: match.wardrobe_image_url || "/placeholder.svg",
+                                    thumbnailSrc: match.wardrobe_image_thumbnail_url,
                                     alt: match.wardrobe_image_description || "Wardrobe item",
                                     description: match.wardrobe_image_description
                                   })}
                                 >
                                   <ImageWithPlaceholder
                                     src={match.wardrobe_image_url || "/placeholder.svg"}
+                                    thumbnailSrc={match.wardrobe_image_thumbnail_url}
                                     alt={match.wardrobe_image_description || "Wardrobe item"}
                                     token={token}
                                     className="w-full h-full object-contain rounded-2xl"
