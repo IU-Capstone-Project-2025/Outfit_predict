@@ -1,9 +1,11 @@
+import io
 from uuid import uuid4
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from minio import Minio
 from minio.error import S3Error
+from PIL import Image
 
 settings = get_settings()
 
@@ -48,8 +50,6 @@ class MinioService:
     # --- write --------------------------------------------------------------
     def save_file(self, data: bytes, content_type: str | None = None) -> str:
         """Save raw bytes into MinIO and return generated object name."""
-        import io
-
         object_name = f"{uuid4().hex}"
         logger.debug(
             f"Saving file to MinIO with object_name: {object_name}, size: {len(data)} bytes,"
@@ -73,6 +73,51 @@ class MinioService:
                 f"Error saving file to MinIO (object_name: {object_name}): {str(e)}"
             )
             raise
+
+    def save_file_with_thumbnail(
+        self, data: bytes, content_type: str | None = None
+    ) -> tuple[str, str]:
+        """Save raw bytes and generate thumbnail, return both object names."""
+        # Save original file
+        original_object_name = self.save_file(data, content_type)
+
+        # Generate and save thumbnail
+        try:
+            # Open image and create thumbnail
+            image = Image.open(io.BytesIO(data))
+            image = image.convert("RGB")  # Ensure RGB format
+
+            # Create thumbnail (200x200 with aspect ratio preserved)
+            thumbnail_size = (200, 200)
+            image.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+
+            # Save thumbnail to bytes
+            thumbnail_buffer = io.BytesIO()
+            image.save(thumbnail_buffer, format="JPEG", quality=85, optimize=True)
+            thumbnail_data = thumbnail_buffer.getvalue()
+
+            # Save thumbnail to MinIO
+            thumbnail_object_name = f"{original_object_name}_thumb"
+            self.client.put_object(
+                self.bucket,
+                thumbnail_object_name,
+                data=io.BytesIO(thumbnail_data),
+                length=len(thumbnail_data),
+                content_type="image/jpeg",
+            )
+
+            logger.info(
+                f"Successfully saved thumbnail to MinIO: {thumbnail_object_name} ({len(thumbnail_data)} bytes)"
+            )
+
+            return original_object_name, thumbnail_object_name
+
+        except Exception as e:
+            logger.error(
+                f"Error creating thumbnail for {original_object_name}: {str(e)}"
+            )
+            # If thumbnail generation fails, return original object name twice
+            return original_object_name, original_object_name
 
     # --- read ---------------------------------------------------------------
     def get_stream(self, object_name: str):

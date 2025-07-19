@@ -6,29 +6,131 @@ interface ImagePreviewModalProps {
   open: boolean;
   onClose: () => void;
   src: string;
+  thumbnailSrc?: string;
   alt?: string;
   description?: string;
   token?: string | null;
 }
 
-function ProtectedImage({ src, alt, token, ...props }: { src: string, alt?: string, token?: string | null } & React.ImgHTMLAttributes<HTMLImageElement>) {
-  const [imgUrl, setImgUrl] = React.useState<string | null>(null);
+interface ProtectedImageProps {
+  src: string;
+  thumbnailSrc?: string;
+  alt?: string;
+  token?: string | null;
+  loadFullSize?: boolean;
+  onThumbnailLoad?: () => void;
+  onFullSizeLoad?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+  [key: string]: any;
+}
 
+function ProtectedImage({
+  src,
+  thumbnailSrc,
+  alt,
+  token,
+  loadFullSize = false,
+  onThumbnailLoad,
+  onFullSizeLoad,
+  ...props
+}: ProtectedImageProps) {
+  const [thumbnailUrl, setThumbnailUrl] = React.useState<string | null>(null);
+  const [fullSizeUrl, setFullSizeUrl] = React.useState<string | null>(null);
+  const [thumbnailLoaded, setThumbnailLoaded] = React.useState(false);
+  const [fullSizeLoaded, setFullSizeLoaded] = React.useState(false);
+  const [currentDisplay, setCurrentDisplay] = React.useState<'loading' | 'thumbnail' | 'fullsize'>('loading');
+
+  // Load thumbnail
   React.useEffect(() => {
     let isMounted = true;
-    if (!src) return;
+    const thumbnailToLoad = thumbnailSrc || src;
+
+    if (!thumbnailToLoad) return;
+
+    // Check cache first
+    const cachedUrl = getCachedImage(thumbnailToLoad);
+    if (cachedUrl) {
+      setThumbnailUrl(cachedUrl);
+      setThumbnailLoaded(true);
+      setCurrentDisplay('thumbnail');
+      onThumbnailLoad?.();
+      return;
+    }
+
+    // If the image is public or no token is provided, use the src directly
+    const isProtectedApi = thumbnailToLoad.startsWith("/api") || thumbnailToLoad.includes("/api/");
+    if (!isProtectedApi || !token) {
+      setThumbnailUrl(thumbnailToLoad);
+      setThumbnailLoaded(true);
+      setCurrentDisplay('thumbnail');
+      onThumbnailLoad?.();
+      return;
+    }
+
+    fetch(thumbnailToLoad, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch thumbnail");
+        return res.blob();
+      })
+      .then(blob => {
+        if (isMounted) {
+          const blobUrl = URL.createObjectURL(blob);
+          setCachedImage(thumbnailToLoad, blobUrl);
+          setThumbnailUrl(blobUrl);
+          setThumbnailLoaded(true);
+          setCurrentDisplay('thumbnail');
+          onThumbnailLoad?.();
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setThumbnailUrl("/placeholder.svg");
+          setThumbnailLoaded(true);
+          setCurrentDisplay('thumbnail');
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [thumbnailSrc, src, token, onThumbnailLoad]);
+
+  // Load full-size image when requested
+  React.useEffect(() => {
+    let isMounted = true;
+
+    if (!loadFullSize || !src || !thumbnailLoaded) return;
+
+    // If thumbnail and full-size are the same, don't reload
+    if (src === thumbnailSrc || src === (thumbnailSrc || src)) {
+      setFullSizeLoaded(true);
+      setCurrentDisplay('fullsize');
+      onFullSizeLoad?.();
+      return;
+    }
 
     // Check cache first
     const cachedUrl = getCachedImage(src);
     if (cachedUrl) {
-      setImgUrl(cachedUrl);
+      setFullSizeUrl(cachedUrl);
+      setFullSizeLoaded(true);
+      setCurrentDisplay('fullsize');
+      onFullSizeLoad?.();
       return;
     }
 
     // If the image is public or no token is provided, use the src directly
     const isProtectedApi = src.startsWith("/api") || src.includes("/api/");
     if (!isProtectedApi || !token) {
-      setImgUrl(src);
+      setFullSizeUrl(src);
+      setFullSizeLoaded(true);
+      setCurrentDisplay('fullsize');
+      onFullSizeLoad?.();
       return;
     }
 
@@ -38,35 +140,81 @@ function ProtectedImage({ src, alt, token, ...props }: { src: string, alt?: stri
       },
     })
       .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch image");
+        if (!res.ok) throw new Error("Failed to fetch full-size image");
         return res.blob();
       })
       .then(blob => {
         if (isMounted) {
           const blobUrl = URL.createObjectURL(blob);
-          setCachedImage(src, blobUrl); // Cache the blob URL
-          setImgUrl(blobUrl);
+          setCachedImage(src, blobUrl);
+          setFullSizeUrl(blobUrl);
+          setFullSizeLoaded(true);
+          setCurrentDisplay('fullsize');
+          onFullSizeLoad?.();
         }
       })
       .catch(() => {
-        if (isMounted) setImgUrl("/placeholder.svg");
+        // Keep showing thumbnail if full-size fails
+        if (isMounted) {
+          setCurrentDisplay('thumbnail');
+        }
       });
 
     return () => {
       isMounted = false;
-      // Do not revoke object URL on unmount to allow caching
     };
-  }, [src, token]);
+  }, [loadFullSize, src, thumbnailSrc, token, thumbnailLoaded, onFullSizeLoad]);
 
-  if (!imgUrl) return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
+  // Show loading placeholder if nothing is loaded yet
+  if (currentDisplay === 'loading') {
+    return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
+  }
 
-  return <img src={imgUrl} alt={alt} loading="lazy" {...props} />;
+  // Show thumbnail or full-size based on what's available and current display state
+  const imageToShow = currentDisplay === 'fullsize' && fullSizeUrl ? fullSizeUrl : thumbnailUrl;
+  const isShowingFullSize = currentDisplay === 'fullsize' && fullSizeUrl;
+
+  if (!imageToShow) {
+    return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
+  }
+
+  return (
+    <img
+      src={imageToShow}
+      alt={alt}
+      loading="lazy"
+      {...props}
+      style={{
+        ...props.style,
+        opacity: isShowingFullSize ? 1 : 0.95, // Slight opacity difference to show it's a thumbnail
+        transition: 'opacity 0.3s ease'
+      }}
+    />
+  );
 }
 
-export { ProtectedImage };
+export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
+  open,
+  onClose,
+  src,
+  thumbnailSrc,
+  alt,
+  description,
+  token
+}) => {
+  const [loadFullSize, setLoadFullSize] = React.useState(false);
 
-export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ open, onClose, src, alt, description, token }) => {
+  // Load full-size image when modal opens
+  React.useEffect(() => {
+    if (open) {
+      setLoadFullSize(true);
+    } else {
+      setLoadFullSize(false);
+    }
+  }, [open]);
+
   if (!open) return null;
+
   return (
     <div
       className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
@@ -94,8 +242,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ open, onCl
             <TransformComponent wrapperClass="w-full h-full flex items-center justify-center">
               <ProtectedImage
                 src={src}
+                thumbnailSrc={thumbnailSrc}
                 alt={alt || "Preview image"}
                 token={token}
+                loadFullSize={loadFullSize}
                 className="w-full max-h-[80vh] object-contain mb-4 select-none"
                 draggable={false}
                 style={{ touchAction: 'none', userSelect: 'none' }}
@@ -108,3 +258,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ open, onCl
     </div>
   );
 };
+
+// Export both components
+export { ProtectedImage };
