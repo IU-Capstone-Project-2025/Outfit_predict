@@ -90,7 +90,7 @@ export default function WardrobePage() {
         if (!res.ok) throw new Error("Failed to fetch wardrobe images")
         const data = await res.json()
         setImages(data)
-        
+
         const fetchedObjectNames = data.map((img: ImageItem) => img.object_name).filter(Boolean) as string[];
         const storedSelectionRaw = typeof window !== 'undefined' ? localStorage.getItem("selectedOutfitItems") : null;
         const storedDeselectedRaw = typeof window !== 'undefined' ? localStorage.getItem("explicitlyDeselectedOutfitItems") : null;
@@ -118,7 +118,7 @@ export default function WardrobePage() {
                     if (Array.isArray(parsed)) parsedDeselected = parsed;
                 }
             } catch (e) { console.error("Error parsing stored deselected items:", e); }
-            
+
             // Start with all fetched items, then apply deselections, then apply selections
             let currentSelection = new Set(fetchedObjectNames);
 
@@ -131,7 +131,7 @@ export default function WardrobePage() {
                     currentSelection.add(name);
                 }
             });
-            
+
             // Ensure the explicitly deselected list is clean and only contains items that are actually in the wardrobe
             const cleanedDeselected = parsedDeselected.filter(name => fetchedObjectNames.includes(name) && !parsedSelected.includes(name));
             setExplicitlyDeselectedImageObjectNames(cleanedDeselected);
