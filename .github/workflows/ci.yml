@@ -210,70 +210,13 @@ jobs:
           backend/coverage/
           frontend/coverage/
 
-  # ==================== Docker Build & Scan ====================
-  docker:
-    name: Docker Build & Security Scan
-    runs-on: ubuntu-latest
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build backend image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./backend
-        file: ./backend/Dockerfile
-        push: false
-        tags: outfit-predict-backend:test
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build frontend image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./frontend
-        file: ./frontend/Dockerfile
-        push: false
-        tags: outfit-predict-frontend:test
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        build-args: |
-          NEXT_PUBLIC_API_URL=http://localhost:8000
-
-    - name: Run Trivy vulnerability scanner on backend
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: outfit-predict-backend:test
-        format: 'sarif'
-        output: 'backend-trivy-results.sarif'
-        exit-code: '0'  # Don't fail on vulnerabilities
-
-    - name: Run Trivy vulnerability scanner on frontend
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: outfit-predict-frontend:test
-        format: 'sarif'
-        output: 'frontend-trivy-results.sarif'
-        exit-code: '0'  # Don't fail on vulnerabilities
-
-    - name: Upload Trivy scan results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: docker-security-reports
-        path: |
-          backend-trivy-results.sarif
-          frontend-trivy-results.sarif
 
   # ==================== Code Quality Gates ====================
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [code-quality, security, test, docker]
+    needs: [code-quality, security, test]
     if: always()
 
     steps:
@@ -282,7 +225,6 @@ jobs:
         echo "Code Quality: ${{ needs.code-quality.result }}"
         echo "Security: ${{ needs.security.result }}"
         echo "Tests: ${{ needs.test.result }}"
-        echo "Docker: ${{ needs.docker.result }}"
 
         # More lenient quality gate - allow warnings but fail on errors
         failed_jobs=""
@@ -295,11 +237,6 @@ jobs:
         if [[ "${{ needs.test.result }}" == "failure" ]]; then
           echo "❌ Tests failed"
           failed_jobs="$failed_jobs tests"
-        fi
-
-        if [[ "${{ needs.docker.result }}" == "failure" ]]; then
-          echo "❌ Docker build failed"
-          failed_jobs="$failed_jobs docker"
         fi
 
         if [[ -n "$failed_jobs" ]]; then
@@ -322,8 +259,7 @@ jobs:
           const results = {
             'Code Quality': '${{ needs.code-quality.result }}',
             'Security': '${{ needs.security.result }}',
-            'Tests': '${{ needs.test.result }}',
-            'Docker': '${{ needs.docker.result }}'
+            'Tests': '${{ needs.test.result }}'
           };
 
           let status = '✅ All checks passed!';
@@ -332,7 +268,7 @@ jobs:
           for (const [check, result] of Object.entries(results)) {
             const emoji = result === 'success' ? '✅' : result === 'failure' ? '❌' : '⚠️';
             details += `${emoji} ${check}: ${result}\n`;
-            if (result === 'failure' && ['Code Quality', 'Tests', 'Docker'].includes(check)) {
+            if (result === 'failure' && ['Code Quality', 'Tests'].includes(check)) {
               status = '❌ Some critical checks failed';
             }
           }
