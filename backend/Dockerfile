@@ -33,9 +33,6 @@ snapshot_download(
 )
 EOF
 
-RUN python -c "import torch; \
-    torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')"
-
 RUN python -c "from transformers import CLIPModel, CLIPProcessor; \
     CLIPModel.from_pretrained('patrickjohncyh/fashion-clip'); \
     CLIPProcessor.from_pretrained('patrickjohncyh/fashion-clip')"
