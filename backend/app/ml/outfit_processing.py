@@ -5,7 +5,7 @@ from typing import List, Tuple
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from app.ml.encoding_models import DinoV2ImageEncoder
+from app.ml.encoding_models import FashionClipEncoder
 from app.ml.image_captioning import generate_caption
 from PIL import Image as PILImage
 from ultralytics import SAM, YOLO
@@ -667,7 +667,7 @@ class FashionSegmentationModel:
 
 
 def split_outfits_to_clothes(
-    embedder: DinoV2ImageEncoder,
+    embedder: FashionClipEncoder,
     segmentation_model: FashionSegmentationModel,
     outfit_dir: str,
     output_dir: str,
@@ -691,14 +691,18 @@ def split_outfits_to_clothes(
             if len(segmented_clothes) == 0:
                 continue
 
-            clothes_embeddings = embedder.get_image_embeddings(segmented_clothes)
+            # Convert numpy arrays to PIL Images for FashionCLIP
+            pil_images = []
+            for cloth_img in segmented_clothes:
+                # Convert BGR (OpenCV) to RGB (PIL)
+                rgb_img = cv2.cvtColor(cloth_img, cv2.COLOR_BGR2RGB)
+                pil_img = PILImage.fromarray(rgb_img)
+                pil_images.append(pil_img)
 
-            # normalize embeddings
-            norms = np.linalg.norm(clothes_embeddings, axis=1, keepdims=True)
-            normalized_embeddings = clothes_embeddings / norms
+            clothes_embeddings = embedder.encode_images(pil_images, normalize=True)
 
-            # calculate similarity matrix
-            similarity_matrix = np.dot(normalized_embeddings, normalized_embeddings.T)
+            # calculate similarity matrix (embeddings are already normalized)
+            similarity_matrix = np.dot(clothes_embeddings, clothes_embeddings.T)
 
             # check on similar clothes in one outfit, remove by threshold
             cleaned_clothes = [(segmented_clothes[0], cloth_names[0])]

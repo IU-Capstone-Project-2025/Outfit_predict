@@ -283,6 +283,8 @@ async def upload_image(
     current_user: User = Depends(get_current_user),
     fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
+    from app.ml.ml_models import image_search_engine, qdrant_service
+
     logger.info(f"Image upload started for user {current_user.email}")
     logger.debug(
         f"Upload details - filename: {file.filename}, content_type: {file.content_type}, size: {file.size}"
@@ -331,6 +333,28 @@ async def upload_image(
             clothing_type,
         )
         logger.info(f"Image metadata saved to database with ID: {image.id}")
+
+        # Add wardrobe image embeddings to Qdrant
+        if clothing_type:  # Only add to index if we could classify the clothing type
+            try:
+                await image_search_engine.add_wardrobe_image_to_index(
+                    image=pil_image,
+                    image_id=str(image.id),
+                    user_id=str(current_user.id),
+                    object_name=object_name,
+                    qdrant=qdrant_service,
+                    clothing_type=clothing_type,
+                )
+                logger.info(
+                    f"Added wardrobe image embeddings to Qdrant for image {image.id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to add wardrobe embeddings to Qdrant: {str(e)}")
+                # Don't fail the upload if Qdrant indexing fails
+        else:
+            logger.warning(
+                f"Skipping Qdrant indexing for image {image.id} - no clothing type detected"
+            )
 
         result = ImageRead(
             **image.__dict__,
@@ -503,6 +527,8 @@ async def delete_image(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
 ):
+    from app.ml.ml_models import image_search_engine, qdrant_service
+
     logger.info(f"Deleting image {image_id} for user {current_user.email}")
 
     try:
@@ -515,6 +541,18 @@ async def delete_image(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Image not found"
             )
+
+        # Delete from Qdrant wardrobe collection
+        try:
+            await image_search_engine.remove_wardrobe_image_from_index(
+                user_id=str(current_user.id),
+                object_name=image.object_name,
+                qdrant=qdrant_service,
+            )
+            logger.info(f"Removed wardrobe embeddings from Qdrant for image {image_id}")
+        except Exception as e:
+            logger.error(f"Failed to remove wardrobe embeddings from Qdrant: {str(e)}")
+            # Don't fail the deletion if Qdrant removal fails
 
         # Delete from MinIO (both original and thumbnail)
         logger.debug(f"Deleting file from MinIO: {image.object_name}")
