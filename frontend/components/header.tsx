@@ -15,7 +15,7 @@ export function Header() {
   const isActive = (path: string) => pathname === path
 
   return (
-    <header className="bg-black backdrop-blur-md border-b border-neutral-700 sticky top-0 z-50 w-full">
+    <header className="bg-black backdrop-blur-md border-b border-neutral-800 sticky top-0 z-50 w-full">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full px-6 py-5">
         <div className="flex flex-row items-center justify-between w-full md:w-auto">
           {/* Logo */}
