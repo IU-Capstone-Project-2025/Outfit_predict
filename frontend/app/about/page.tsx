@@ -11,29 +11,24 @@ export default function AboutPage() {
   // Fashion images for the carousel
   const fashionImages = [
     {
-      src: "/about-images/male-1.png",
-      alt: "Blue and white striped shirt with white jeans",
-      title: "Urban Cool",
+      src: "/about-images/athleisure.jpg",
+      title: "Athleisure",
     },
     {
-      "src": "/about-images/male-2.png",
-      "alt": "Smart-casual outfit with black sweater, white shirt, jogger pants, and dress shoes",
-      "title": "Modern Smartwear"
+      "src": "/about-images/minimalist.jpg",
+      "title": "Minimalist"
     },
     {
-    "src": "/about-images/female-1.png",
-    "alt": "Casual outfit with camel coat, coral blouse, ripped jeans, and black flats",
-    "title": "Urban Casual"
+    "src": "/about-images/formal.jpg",
+    "title": "Formal"
     },
     {
-      "src": "/about-images/female-2.png",
-      "title": "Boho Casual",
-      "alt": "White embroidered blouse with distressed denim shorts",
+      "src": "/about-images/streetwear.jpg",
+      "title": "Streetwear"
     },
     {
-      "src": "/about-images/female-3.png",
-      "title": "Retro Vibes",
-      "alt": "Peach floral blouse and flared jeans",
+      "src": "/about-images/other.jpg",
+      "title": "Other"
     },
   ]
 
