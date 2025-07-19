@@ -130,12 +130,24 @@ export default function OutfitGeneratorMain() {
     setLoadingRecommendations(true)
     setRecommendationError(null)
     try {
+      const selectedObjectNames = JSON.parse(localStorage.getItem("selectedOutfitItems") || "[]");
+
+      let requestBody: { object_names?: string[]; image_ids?: string[] } = {};
+      let endpoint = 'v1/outfits/search-similar/';
+
+      if (selectedObjectNames.length > 0) {
+        requestBody = { object_names: selectedObjectNames };
+        endpoint = 'v1/outfits/search-similar-subset/';
+      }
+
       // 1. Call the backend to generate recommendations
-      const response = await fetch(apiUrl('v1/outfits/search-similar/'), {
+      const response = await fetch(apiUrl(endpoint), {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+        body: JSON.stringify(requestBody),
       })
       if (!response.ok) throw new Error("Failed to generate outfits")
       const recs = await response.json()
