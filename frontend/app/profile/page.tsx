@@ -3,18 +3,19 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
-import { User, Settings, Camera, Trash2, Eye, Shirt, MoreVertical } from "lucide-react"
+import { User, Settings, Camera, Trash2, Eye, Shirt, MoreVertical, Heart } from "lucide-react"
 import Link from "next/link"
 import { getApiBaseUrl, apiUrl, fetchWithAuth } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
-import { ImagePreviewModal } from "@/components/ImagePreviewModal";
+import { ImagePreviewModal, ProtectedImage } from "@/components/ImagePreviewModal";
 
 interface ImageItem {
   id: string
   description?: string
   object_name?: string
   url: string
+  thumbnail_url?: string
 }
 
 export default function WardrobePage() {
@@ -269,6 +270,7 @@ export default function WardrobePage() {
         open={!!selectedImage}
         onClose={() => setSelectedImage(null)}
         src={selectedImage?.url || ""}
+        thumbnailSrc={selectedImage?.thumbnail_url}
         alt={selectedImage?.description}
         description={selectedImage?.description}
         token={token}
@@ -328,6 +330,12 @@ export default function WardrobePage() {
                   Upload New Items
                 </Button>
               </Link>
+              <Link href="/saved-outfits">
+                <Button className="bg-gray-800 text-white hover:bg-gray-700 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
+                  <Heart className="w-5 h-5" />
+                  Saved Outfits
+                </Button>
+              </Link>
               <Button
                 onClick={handleSelectAll}
                 className="bg-gray-700 text-white hover:bg-gray-600 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2"
@@ -374,7 +382,7 @@ export default function WardrobePage() {
                     >
                       <div className="flex-1 flex items-center justify-center bg-black aspect-square h-full">
                         <ProtectedImage
-                          src={image.url}
+                          src={image.thumbnail_url || image.url}
                           alt={image.description || `Wardrobe item ${index + 1}`}
                           token={token}
                           className="w-full h-full object-contain"
@@ -428,43 +436,4 @@ export default function WardrobePage() {
       </div>
     </div>
   )
-}
-
-function ProtectedImage({ src, alt, token, ...props }: { src: string, alt: string, token: string | null } & React.ImgHTMLAttributes<HTMLImageElement>) {
-  const [imgUrl, setImgUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    let abortController = new AbortController();
-    if (!src || !token) return;
-
-    fetch(src, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      signal: abortController.signal,
-    })
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch image");
-        return res.blob();
-      })
-      .then(blob => {
-        if (isMounted) setImgUrl(URL.createObjectURL(blob));
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
-          // Optionally handle error
-        }
-      });
-
-    return () => {
-      isMounted = false;
-      abortController.abort();
-      if (imgUrl) URL.revokeObjectURL(imgUrl);
-    };
-  }, [src, token]);
-
-  if (!imgUrl) return <div style={{ width: "100%", height: "100%", background: "#222" }} />;
-
-  return <img src={imgUrl} alt={alt} loading="lazy" {...props} />;
 }

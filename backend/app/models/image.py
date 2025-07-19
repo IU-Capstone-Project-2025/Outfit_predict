@@ -12,6 +12,7 @@ class Image(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     description = Column(String(length=255), nullable=True)
     object_name = Column(String(length=512), nullable=False, unique=True)
+    thumbnail_object_name = Column(String(length=512), nullable=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

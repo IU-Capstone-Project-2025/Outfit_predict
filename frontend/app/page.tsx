@@ -1,21 +1,21 @@
 "use client"
 
 import React, { useState, useCallback, useRef } from "react"
-import { Upload, Sparkles } from "lucide-react"
+import { Upload, Sparkles, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
-import { getApiBaseUrl, apiUrl } from "@/lib/utils"
+import { getApiBaseUrl, apiUrl, fetchWithAuth } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { ImagePreviewModal, ProtectedImage } from "@/components/ImagePreviewModal";
 
 // Add a helper component for image with placeholder
-function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
-  const [loaded, setLoaded] = React.useState(false);
+function ImageWithPlaceholder({ src, thumbnailSrc, alt, token, className, ...props }: any) {
+  const [thumbnailLoaded, setThumbnailLoaded] = React.useState(false);
   return (
     <>
-      {!loaded && (
+      {!thumbnailLoaded && (
         <img
           src="/placeholder.svg"
           alt="placeholder"
@@ -25,10 +25,11 @@ function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
       )}
       <ProtectedImage
         src={src}
+        thumbnailSrc={thumbnailSrc}
         alt={alt}
         token={token}
-        className={className + (loaded ? '' : ' invisible')}
-        onLoad={() => setLoaded(true)}
+        className={className + (thumbnailLoaded ? '' : ' invisible')}
+        onThumbnailLoad={() => setThumbnailLoaded(true)}
         {...props}
       />
     </>
@@ -49,14 +50,75 @@ export default function OutfitGeneratorMain() {
   const router = useRouter()
   const [previewImage, setPreviewImage] = useState<{
     src: string;
+    thumbnailSrc?: string;
     alt?: string;
     description?: string;
   } | null>(null);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([
     "formal", "streetwear", "minimalist", "athleisure", "other"
   ]); // All styles selected by default
+  const [savedOutfits, setSavedOutfits] = useState<Set<string>>(new Set())
+  const [savingOutfits, setSavingOutfits] = useState<Set<string>>(new Set())
 
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+
+  // Helper to handle logout and redirect
+  const handle401Logout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user_email')
+      localStorage.removeItem('selectedOutfitItems')
+    }
+    router.replace('/login')
+  }
+
+  // Save outfit function
+  const saveOutfit = useCallback(async (recommendation: any) => {
+    if (!user || !recommendation) return
+
+    const outfitId = recommendation.outfit.id
+    setSavingOutfits(prev => new Set(prev).add(outfitId))
+
+    try {
+      const saveData = {
+        outfit_id: outfitId,
+        completeness_score: recommendation.recommendation.completeness_score,
+        matches: recommendation.recommendation.matches
+      }
+
+      const response = await fetchWithAuth(
+        apiUrl('v1/saved-outfits/'),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(saveData)
+        },
+        handle401Logout
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        if (response.status === 409) {
+          throw new Error("This outfit is already saved!")
+        }
+        throw new Error(errorData.detail || "Failed to save outfit")
+      }
+
+      setSavedOutfits(prev => new Set(prev).add(outfitId))
+      showUploadMessage("Outfit saved successfully!")
+    } catch (err: any) {
+      console.error("Error saving outfit:", err)
+      showUploadMessage(err.message || "Failed to save outfit. Please try again.")
+    } finally {
+      setSavingOutfits(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(outfitId)
+        return newSet
+      })
+    }
+  }, [user, token, router])
 
   const showUploadMessage = useCallback((message: string) => {
     if (fadeOutTimeoutRef.current) {
@@ -184,6 +246,7 @@ export default function OutfitGeneratorMain() {
         const matchesSrc = rec.recommendation?.matches || [];
         const matchesWithUrls = await Promise.all(matchesSrc.map(async (match: any) => {
           let wardrobe_image_url = undefined;
+          let wardrobe_image_thumbnail_url = undefined;
           let wardrobe_image_description = undefined;
           if (match.wardrobe_image_object_name) {
             try {
@@ -195,6 +258,7 @@ export default function OutfitGeneratorMain() {
               if (urlRes.ok) {
                 const urlData = await urlRes.json();
                 wardrobe_image_url = urlData.url;
+                wardrobe_image_thumbnail_url = urlData.thumbnail_url;
                 wardrobe_image_description = urlData.description;
               }
             } catch (e) {
@@ -204,6 +268,7 @@ export default function OutfitGeneratorMain() {
           return {
             ...match,
             wardrobe_image_url: wardrobe_image_url || "/placeholder.svg",
+            wardrobe_image_thumbnail_url: wardrobe_image_thumbnail_url,
             wardrobe_image_description: wardrobe_image_description,
           };
         }));
@@ -214,12 +279,24 @@ export default function OutfitGeneratorMain() {
       }));
       setRecommendations(recsWithUrls)
       setShowRecommendations(true)
+
+              // Check which outfits are already saved
+        try {
+          const savedResponse = await fetchWithAuth(apiUrl('v1/saved-outfits/'), {}, handle401Logout)
+          if (savedResponse.ok) {
+            const savedData = await savedResponse.json()
+            const savedIds = new Set<string>(savedData.map((saved: any) => saved.outfit_id))
+            setSavedOutfits(savedIds)
+          }
+        } catch (err) {
+          console.warn("Failed to fetch saved outfits:", err)
+        }
     } catch (err) {
       setRecommendationError("Failed to generate outfits. Please try again.")
     } finally {
       setLoadingRecommendations(false)
     }
-  }, [showUploadMessage, token, user])
+  }, [showUploadMessage, token, user, handle401Logout])
 
 
   return (
@@ -256,6 +333,7 @@ export default function OutfitGeneratorMain() {
         open={!!previewImage}
         onClose={() => setPreviewImage(null)}
         src={previewImage?.src || ""}
+        thumbnailSrc={previewImage?.thumbnailSrc}
         alt={previewImage?.alt}
         description={previewImage?.description}
         token={token}
@@ -367,11 +445,13 @@ export default function OutfitGeneratorMain() {
                           className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
                           onClick={() => setPreviewImage({
                             src: rec.outfit.url || "/placeholder.svg",
-                            alt: `Generated Outfit #${idx + 1}`
+                            alt: `Generated Outfit #${idx + 1}`,
+                            thumbnailSrc: rec.outfit.thumbnail_url
                           })}
                         >
                           <ImageWithPlaceholder
                             src={rec.outfit.url || "/placeholder.svg"}
+                            thumbnailSrc={rec.outfit.thumbnail_url}
                             alt="Generated Outfit"
                             token={token}
                             className="w-full h-full object-contain rounded-3xl"
@@ -384,6 +464,30 @@ export default function OutfitGeneratorMain() {
                           <span className="text-black text-xs font-semibold">
                             {(rec.outfit?.style || "other").charAt(0).toUpperCase() + (rec.outfit?.style || "other").slice(1)}
                           </span>
+                        </div>
+                        {/* Save button */}
+                        <div className="absolute bottom-4 right-4 z-20">
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              saveOutfit(rec)
+                            }}
+                            disabled={savingOutfits.has(rec.outfit.id) || savedOutfits.has(rec.outfit.id)}
+                            className={`rounded-full p-3 transition-all duration-200 ${
+                              savedOutfits.has(rec.outfit.id)
+                                ? "bg-black text-white cursor-default"
+                                : savingOutfits.has(rec.outfit.id)
+                                ? "bg-white/70 text-gray-500 cursor-not-allowed"
+                                : "bg-white/90 text-black hover:bg-white hover:scale-110 cursor-pointer"
+                            }`}
+                            title={savedOutfits.has(rec.outfit.id) ? "Already saved" : "Save outfit"}
+                          >
+                            {savingOutfits.has(rec.outfit.id) ? (
+                              <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Heart className={`w-5 h-5 ${savedOutfits.has(rec.outfit.id) ? 'fill-current' : ''}`} />
+                            )}
+                          </Button>
                         </div>
                       </div>
 
@@ -409,12 +513,14 @@ export default function OutfitGeneratorMain() {
                                   className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
                                   onClick={() => setPreviewImage({
                                     src: match.wardrobe_image_url || "/placeholder.svg",
+                                    thumbnailSrc: match.wardrobe_image_thumbnail_url,
                                     alt: match.wardrobe_image_description || "Wardrobe item",
                                     description: match.wardrobe_image_description
                                   })}
                                 >
                                   <ImageWithPlaceholder
                                     src={match.wardrobe_image_url || "/placeholder.svg"}
+                                    thumbnailSrc={match.wardrobe_image_thumbnail_url}
                                     alt={match.wardrobe_image_description || "Wardrobe item"}
                                     token={token}
                                     className="w-full h-full object-contain rounded-2xl"

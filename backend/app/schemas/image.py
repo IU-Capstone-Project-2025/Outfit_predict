@@ -18,6 +18,7 @@ class ImageRead(ImageBase):
     created_at: datetime
     user_id: UUID
     url: str
+    thumbnail_url: str | None
 
     class Config:
         from_attributes = True
