@@ -36,19 +36,57 @@ export default function OutfitGeneratorMain() {
     }
   }, []);
 
+  // --- Selection state sync ---
+  const [selectedObjectNames, setSelectedObjectNames] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("selectedOutfitItems");
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Sync selection from localStorage on mount, focus, and storage events
+  useEffect(() => {
+    const syncSelection = () => {
+      try {
+        const stored = localStorage.getItem("selectedOutfitItems");
+        const parsed = stored ? JSON.parse(stored) : [];
+        setSelectedObjectNames(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setSelectedObjectNames([]);
+      }
+    };
+    syncSelection();
+    window.addEventListener('focus', syncSelection);
+    window.addEventListener('storage', syncSelection);
+    return () => {
+      window.removeEventListener('focus', syncSelection);
+      window.removeEventListener('storage', syncSelection);
+    };
+  }, []);
+
   useEffect(() => {
     return () => {
       if (fadeOutTimeoutRef.current) {
         clearTimeout(fadeOutTimeoutRef.current);
       }
+      // Clear upload queue
+      uploadQueueRef.current = [];
+      activeUploadsRef.current = 0;
     };
   }, []);
 
-  const showUploadMessage = useCallback((message: string) => {
+  // Add a type for upload messages
+  const [uploadMessageType, setUploadMessageType] = useState<'success' | 'error'>('success');
+
+  const showUploadMessage = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     if (fadeOutTimeoutRef.current) {
-      clearTimeout(fadeOutTimeoutRef.current) // Clear existing timeout if any
+      clearTimeout(fadeOutTimeoutRef.current)
     }
     setUploadMessage(message)
+    setUploadMessageType(type)
     setIsMessageFadingOut(false)
 
     fadeOutTimeoutRef.current = setTimeout(() => {
@@ -83,7 +121,21 @@ export default function OutfitGeneratorMain() {
       }, handle401Logout)
       if (response.ok) {
         const result = await response.json()
+        if (!result || !result.object_name) {
+          showUploadMessage("Upload succeeded but no object_name returned. Please refresh the page.", 'error');
+          return;
+        }
         showUploadMessage(`Image "${file.name}" uploaded successfully!`)
+        let prevSelected = [];
+        try {
+          prevSelected = JSON.parse(localStorage.getItem("selectedOutfitItems") || "[]");
+          if (!Array.isArray(prevSelected)) prevSelected = [];
+        } catch (e) { prevSelected = []; }
+        if (!prevSelected.includes(result.object_name)) {
+          prevSelected.push(result.object_name);
+          localStorage.setItem("selectedOutfitItems", JSON.stringify(prevSelected));
+        }
+        setSelectedObjectNames(prevSelected);
       } else {
         showUploadMessage(`Failed to upload "${file.name}".`)
       }
@@ -148,19 +200,20 @@ export default function OutfitGeneratorMain() {
     if (!user) {
       return;
     }
-    setLoadingRecommendations(true)
-    setRecommendationError(null)
+    setRecommendationError(null); // Always clear previous error on new attempt
+    // Use the synced state for selection
+    if (!selectedObjectNames || selectedObjectNames.length === 0) {
+      showUploadMessage("Please select at least one wardrobe item to generate outfits.", 'error');
+      return;
+    }
+    setLoadingRecommendations(true);
     try {
-      const selectedObjectNames = JSON.parse(localStorage.getItem("selectedOutfitItems") || "[]");
-
       let requestBody: { object_names?: string[]; image_ids?: string[] } = {};
       let endpoint = 'v1/outfits/search-similar/';
-
       if (selectedObjectNames.length > 0) {
         requestBody = { object_names: selectedObjectNames };
         endpoint = 'v1/outfits/search-similar-subset/';
       }
-
       // 1. Call the backend to generate recommendations
       const response = await fetchWithAuth(apiUrl(endpoint), {
         method: "POST",
@@ -207,7 +260,7 @@ export default function OutfitGeneratorMain() {
     } finally {
       setLoadingRecommendations(false)
     }
-  }, [showUploadMessage, user])
+  }, [showUploadMessage, user, selectedObjectNames])
 
   // Add a helper component for image with placeholder
   type ImageWithPlaceholderProps = {
@@ -484,9 +537,12 @@ export default function OutfitGeneratorMain() {
                 {/* Upload Message */}
                 {uploadMessage && (
                   <div
-                    className={`absolute -bottom-20 left-1/2 transform -translate-x-1/2 bg-green-600/90 backdrop-blur-sm text-white px-8 py-4 rounded-2xl shadow-lg transition-opacity duration-500 ${
-                      isMessageFadingOut ? "opacity-0" : "opacity-100"
-                    } whitespace-nowrap text-lg font-medium`}
+                    className={`fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 px-8 py-4 rounded-2xl shadow-lg transition-opacity duration-500 whitespace-nowrap text-lg font-medium
+                      ${uploadMessageType === 'error' ?
+                        (isMessageFadingOut ? 'opacity-0' : 'opacity-100') + ' bg-red-600 text-white' :
+                        (isMessageFadingOut ? 'opacity-0' : 'opacity-100') + ' bg-green-600 text-white backdrop-blur-sm'}
+                    `}
+                    style={uploadMessageType === 'error' ? { backgroundColor: '#dc2626', opacity: isMessageFadingOut ? 0 : 1 } : {}}
                   >
                     {uploadMessage}
                   </div>
