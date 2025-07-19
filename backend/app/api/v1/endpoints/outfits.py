@@ -768,6 +768,7 @@ async def split_outfit_to_clothes(
             logger.info(f"Outfit metadata saved to database with ID: {outfit_id}")
 
             # 3. Segment clothing items using FashionSegmentationModel
+            # This returns both segmented images and YOLO-detected clothing class names
             result = segmentation_model.get_segment_images(tmp_path)
             if not result or len(result) == 0:
                 logger.warning(
@@ -789,10 +790,10 @@ async def split_outfit_to_clothes(
 
             logger.info(
                 f"Successfully segmented {len(segmented_clothes)} clothing items for outfit "
-                f"{outfit_id}"
+                f"{outfit_id}: {cloth_names}"
             )
 
-            # 4. Add each detected clothing item to Qdrant
+            # 4. Add each detected clothing item to Qdrant with YOLO-provided clothing types
             clothing_info = []
             for name, cropped_img in zip(cloth_names, segmented_clothes):
                 if cropped_img.size == 0:
@@ -802,10 +803,20 @@ async def split_outfit_to_clothes(
                     continue  # skip empty crops
                 pil_img = Image.fromarray(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
                 image_id = str(uuid.uuid4())
+
+                # Extract base clothing type from YOLO name (remove _0, _1 suffixes)
+                clothing_type = name.split("_")[0] if "_" in name else name
+
                 await image_search.add_image_to_index(
-                    image=pil_img, image_id=image_id, outfit_id=outfit_id, qdrant=qdrant
+                    image=pil_img,
+                    image_id=image_id,
+                    outfit_id=outfit_id,
+                    qdrant=qdrant,
+                    clothing_type=clothing_type,
                 )
-                clothing_info.append({"name": name, "image_id": image_id})
+                clothing_info.append(
+                    {"name": name, "image_id": image_id, "clothing_type": clothing_type}
+                )
 
             logger.info(
                 f"Successfully added {len(clothing_info)} clothing items to Qdrant for outfit "

@@ -32,6 +32,13 @@ logger = get_logger("app.api.images")
 router = APIRouter(prefix="/images", tags=["images"])
 
 
+def get_fashion_clip_encoder():
+    """Dependency function to get the FashionClipEncoder instance."""
+    from app.ml.ml_models import fashion_clip_encoder
+
+    return fashion_clip_encoder
+
+
 @router.get("/", response_model=List[ImageRead])
 async def list_images(
     request: Request,
@@ -274,6 +281,7 @@ async def upload_image(
     db: AsyncSession = Depends(get_db),
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
+    fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
     logger.info(f"Image upload started for user {current_user.email}")
     logger.debug(
@@ -294,6 +302,17 @@ async def upload_image(
         file_content = await file.read()
         logger.debug(f"Read {len(file_content)} bytes from uploaded file")
 
+        # Convert image to PIL format for clothing classification
+        pil_image = PILImage.open(io.BytesIO(file_content)).convert("RGB")
+
+        # Classify clothing type automatically
+        from app.ml.clothes_type_classification import identify_clothes_type
+
+        clothing_types = identify_clothes_type(fashion_encoder, [pil_image])
+        clothing_type = clothing_types[0] if clothing_types else None
+
+        logger.info(f"Automatically classified clothing type: {clothing_type}")
+
         # Save to MinIO with thumbnail generation
         object_name, thumbnail_object_name = minio.save_file_with_thumbnail(
             file_content, content_type=file.content_type
@@ -302,9 +321,14 @@ async def upload_image(
             f"Image saved to MinIO with object_name: {object_name}, thumbnail: {thumbnail_object_name}"
         )
 
-        # Save metadata to database
+        # Save metadata to database including clothing_type
         image = await crud_image.create_image(
-            db, current_user.id, description, object_name, thumbnail_object_name
+            db,
+            current_user.id,
+            description,
+            object_name,
+            thumbnail_object_name,
+            clothing_type,
         )
         logger.info(f"Image metadata saved to database with ID: {image.id}")
 

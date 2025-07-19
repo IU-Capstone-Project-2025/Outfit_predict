@@ -129,7 +129,12 @@ class ImageSearchEngine:
             raise
 
     async def add_image_to_index(
-        self, image: Image.Image, image_id: str, outfit_id: str, qdrant: QdrantService
+        self,
+        image: Image.Image,
+        image_id: str,
+        outfit_id: str,
+        qdrant: QdrantService,
+        clothing_type: str,
     ) -> None:
         """
         Add a single image to the Qdrant index
@@ -139,9 +144,10 @@ class ImageSearchEngine:
             image_id: Unique identifier for the image
             outfit_id: ID of the outfit this image belongs to
             qdrant: QdrantService instance
+            clothing_type: Optional clothing type label (from YOLO detection)
         """
         logger.debug(
-            f"Adding image to index: image_id={image_id}, outfit_id={outfit_id}"
+            f"Adding image to index: image_id={image_id}, outfit_id={outfit_id}, clothing_type={clothing_type}"
         )
 
         try:
@@ -150,17 +156,23 @@ class ImageSearchEngine:
             vector = self.get_image_embeddings(image)[0]
 
             # Create point with vector and metadata
+            payload = {"outfit_id": outfit_id}
+            if clothing_type:
+                payload["clothing_type"] = clothing_type
+
             point = {
                 "id": image_id,
                 "vector": vector,
-                "payload": {"outfit_id": outfit_id},
+                "payload": payload,
             }
 
             # Upsert to Qdrant
             logger.debug("Upserting vector to Qdrant")
             qdrant.upsert_vectors([point])
 
-            logger.info(f"Successfully added image to index: {image_id}")
+            logger.info(
+                f"Successfully added image to index: {image_id} with clothing_type: {clothing_type}"
+            )
 
         except Exception as e:
             logger.error(f"Error adding image to index (image_id={image_id}): {str(e)}")
