@@ -182,17 +182,12 @@ curl http://localhost:8000/docs  # API documentation
 
 ## Monitoring and Logs
 
-The deployment includes comprehensive monitoring:
+The deployment includes container log monitoring:
 
 - **Dozzle** (Port 9999): Real-time container logs
-- **Grafana** (Port 3001): System metrics and dashboards
-- **Prometheus** (Port 9090): Metrics collection
-- **Node Exporter** (Port 9100): System metrics
 
 Access via nginx proxy (if configured):
 - Logs: `https://yourdomain.com/logs/`
-- Dashboards: `https://yourdomain.com/grafana/`
-- Metrics: `https://yourdomain.com/prometheus/`
 
 ## Troubleshooting
 
