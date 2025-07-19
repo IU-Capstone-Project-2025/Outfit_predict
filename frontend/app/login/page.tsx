@@ -22,7 +22,13 @@ export default function LoginPage() {
       await login(email, password)
       router.replace("/")
     } catch (err: any) {
-      setError(err.message || "Login failed")
+      if (typeof err === 'string') {
+        setError(err);
+      } else if (err && typeof err === 'object' && 'message' in err) {
+        setError((err as any).message || "Login failed");
+      } else {
+        setError("Login failed. Please check your network connection and try again.");
+      }
     } finally {
       setLoading(false)
     }

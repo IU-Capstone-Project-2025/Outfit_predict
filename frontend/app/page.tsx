@@ -1,10 +1,10 @@
 "use client"
 
-import React, { useState, useCallback, useRef } from "react"
+import React, { useState, useCallback, useRef, useEffect } from "react"
 import { Upload, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
-import { getApiBaseUrl, apiUrl } from "@/lib/utils"
+import { getApiBaseUrl, apiUrl, fetchWithAuth } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
@@ -28,7 +28,21 @@ export default function OutfitGeneratorMain() {
     description?: string;
   } | null>(null);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+  // const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+  const [token, setToken] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setToken(localStorage.getItem("token"));
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (fadeOutTimeoutRef.current) {
+        clearTimeout(fadeOutTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const showUploadMessage = useCallback((message: string) => {
     if (fadeOutTimeoutRef.current) {
@@ -46,6 +60,16 @@ export default function OutfitGeneratorMain() {
     }, 2500)
   }, [])
 
+  // Helper to handle logout and redirect
+  const handle401Logout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user_email');
+      localStorage.removeItem('selectedOutfitItems');
+    }
+    router.replace('/login');
+  };
+
   const uploadImage = useCallback(async (file: File) => {
     if (!user) {
       return;
@@ -53,13 +77,10 @@ export default function OutfitGeneratorMain() {
     const formData = new FormData()
     formData.append("file", file)
     try {
-      const response = await fetch(apiUrl('v1/images/'), {
+      const response = await fetchWithAuth(apiUrl('v1/images/'), {
         method: "POST",
         body: formData,
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      })
+      }, handle401Logout)
       if (response.ok) {
         const result = await response.json()
         showUploadMessage(`Image "${file.name}" uploaded successfully!`)
@@ -69,7 +90,7 @@ export default function OutfitGeneratorMain() {
     } catch (error) {
       showUploadMessage(`Error uploading "${file.name}".`)
     }
-  }, [showUploadMessage, token, user])
+  }, [showUploadMessage, user])
 
   // Concurrency-limited upload queue
   const MAX_CONCURRENT_UPLOADS = 10;
@@ -141,14 +162,13 @@ export default function OutfitGeneratorMain() {
       }
 
       // 1. Call the backend to generate recommendations
-      const response = await fetch(apiUrl(endpoint), {
+      const response = await fetchWithAuth(apiUrl(endpoint), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(requestBody),
-      })
+      }, handle401Logout)
       if (!response.ok) throw new Error("Failed to generate outfits")
       const recs = await response.json()
       // 2. For each match, fetch the wardrobe image URL from the new endpoint
@@ -159,11 +179,7 @@ export default function OutfitGeneratorMain() {
           let wardrobe_image_description = undefined;
           if (match.wardrobe_image_object_name) {
             try {
-              const urlRes = await fetch(apiUrl(`v1/utilities/${encodeURIComponent(match.wardrobe_image_object_name)}/url`), {
-                headers: {
-                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-              });
+              const urlRes = await fetchWithAuth(apiUrl(`v1/utilities/${encodeURIComponent(match.wardrobe_image_object_name)}/url`), {}, handle401Logout);
               if (urlRes.ok) {
                 const urlData = await urlRes.json();
                 wardrobe_image_url = urlData.url;
@@ -191,10 +207,17 @@ export default function OutfitGeneratorMain() {
     } finally {
       setLoadingRecommendations(false)
     }
-  }, [showUploadMessage, token, user])
+  }, [showUploadMessage, user])
 
   // Add a helper component for image with placeholder
-  function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
+  type ImageWithPlaceholderProps = {
+    src: string;
+    alt?: string;
+    token: string | null;
+    className?: string;
+    [key: string]: any;
+  };
+  function ImageWithPlaceholder({ src, alt, token, className, ...props }: ImageWithPlaceholderProps) {
     const [loaded, setLoaded] = React.useState(false);
     return (
       <>

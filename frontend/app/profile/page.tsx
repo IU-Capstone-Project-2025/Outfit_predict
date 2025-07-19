@@ -5,7 +5,7 @@ import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { User, Settings, Camera, Trash2, Eye, Shirt, MoreVertical } from "lucide-react"
 import Link from "next/link"
-import { getApiBaseUrl, apiUrl } from "@/lib/utils"
+import { getApiBaseUrl, apiUrl, fetchWithAuth } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { ImagePreviewModal } from "@/components/ImagePreviewModal";
@@ -65,6 +65,16 @@ export default function WardrobePage() {
   const router = useRouter()
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
 
+  // Helper to handle logout and redirect
+  const handle401Logout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user_email');
+      localStorage.removeItem('selectedOutfitItems');
+    }
+    router.replace('/login');
+  };
+
   // Fetch wardrobe images
   useEffect(() => {
     if (loading) return;
@@ -82,13 +92,9 @@ export default function WardrobePage() {
       setWardrobeLoading(true)
       setError(null)
       try {
-        const res = await fetch(apiUrl('v1/images/'), {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        })
-        if (!res.ok) throw new Error("Failed to fetch wardrobe images")
-        const data = await res.json()
+        const imagesRes = await fetchWithAuth(apiUrl('v1/images/'), {}, handle401Logout)
+        if (!imagesRes.ok) throw new Error("Failed to fetch wardrobe images")
+        const data = await imagesRes.json()
         setImages(data)
         
         const fetchedObjectNames = data.map((img: ImageItem) => img.object_name).filter(Boolean) as string[];
@@ -191,27 +197,27 @@ export default function WardrobePage() {
       return;
     }
     try {
-      const res = await fetch(apiUrl(`v1/images/${imageId}`), {
+      const deleteRes = await fetchWithAuth(apiUrl(`v1/images/${imageId}`), {
         method: "DELETE",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      })
-      if (res.ok) {
-        setImages((prev) => prev.filter((img) => img.id !== imageId))
-        setSelectedImageObjectNames(prev => prev.filter(name => {
+      }, handle401Logout)
+      if (deleteRes.ok) {
+        setImages(prev => prev.filter((img) => img.id !== imageId))
+        // Find the deleted image's object_name
+        setSelectedImageObjectNames(prev => {
           const deletedImage = images.find(img => img.id === imageId);
-          return deletedImage ? name !== deletedImage.object_name : true;
-        }));
-        setExplicitlyDeselectedImageObjectNames(prev => prev.filter(name => {
+          if (!deletedImage || !deletedImage.object_name) return prev;
+          return prev.filter(name => name !== deletedImage.object_name);
+        });
+        setExplicitlyDeselectedImageObjectNames(prev => {
           const deletedImage = images.find(img => img.id === imageId);
-          return deletedImage ? name !== deletedImage.object_name : true;
-        }));
+          if (!deletedImage || !deletedImage.object_name) return prev;
+          return prev.filter(name => name !== deletedImage.object_name);
+        });
       }
     } catch (err) {
       // Optionally show error
     }
-  }, [token, user, images])
+  }, [user, images])
 
   useEffect(() => {
     if (menuOpenIndex === null) return;
@@ -429,12 +435,14 @@ function ProtectedImage({ src, alt, token, ...props }: { src: string, alt: strin
 
   useEffect(() => {
     let isMounted = true;
+    let abortController = new AbortController();
     if (!src || !token) return;
 
     fetch(src, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      signal: abortController.signal,
     })
       .then(res => {
         if (!res.ok) throw new Error("Failed to fetch image");
@@ -442,10 +450,16 @@ function ProtectedImage({ src, alt, token, ...props }: { src: string, alt: strin
       })
       .then(blob => {
         if (isMounted) setImgUrl(URL.createObjectURL(blob));
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          // Optionally handle error
+        }
       });
 
     return () => {
       isMounted = false;
+      abortController.abort();
       if (imgUrl) URL.revokeObjectURL(imgUrl);
     };
   }, [src, token]);
