@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
-import { User, Settings, Camera, Trash2, Eye, Shirt, MoreVertical } from "lucide-react"
+import { User, Settings, Camera, Trash2, Eye, Shirt, MoreVertical, Heart } from "lucide-react"
 import Link from "next/link"
 import { getApiBaseUrl, apiUrl, fetchWithAuth } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -328,6 +328,12 @@ export default function WardrobePage() {
                 <Button className="bg-white text-black hover:bg-gray-200 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
                   <Camera className="w-5 h-5" />
                   Upload New Items
+                </Button>
+              </Link>
+              <Link href="/saved-outfits">
+                <Button className="bg-gray-800 text-white hover:bg-gray-700 rounded-full px-8 py-3 font-semibold transition-all duration-200 flex items-center gap-2">
+                  <Heart className="w-5 h-5" />
+                  Saved Outfits
                 </Button>
               </Link>
               <Button
