@@ -10,14 +10,24 @@ logger = get_logger("app.db.crud.image")
 
 
 async def create_image(
-    db: AsyncSession, user_id: uuid.UUID, description: str | None, object_name: str
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    description: str | None,
+    object_name: str,
+    thumbnail_object_name: str | None = None,
 ) -> Image:
     logger.debug(
-        f"Creating image for user {user_id}: object_name={object_name}, description={description}"
+        f"Creating image for user {user_id}: object_name={object_name}, "
+        f"thumbnail_object_name={thumbnail_object_name}, description={description}"
     )
 
     try:
-        image = Image(user_id=user_id, description=description, object_name=object_name)
+        image = Image(
+            user_id=user_id,
+            description=description,
+            object_name=object_name,
+            thumbnail_object_name=thumbnail_object_name,
+        )
         db.add(image)
         await db.commit()
         await db.refresh(image)
@@ -80,23 +90,21 @@ async def list_images(
 
 async def delete_image(
     db: AsyncSession, image_id: uuid.UUID, user_id: uuid.UUID
-) -> Image | None:
-    """Delete an image, ensuring user ownership."""
+) -> None:
     logger.debug(f"Deleting image {image_id} for user {user_id}")
 
     try:
-        # First get the image to ensure it exists and user owns it
-        image = await get_image(db, image_id, user_id)
+        stmt = select(Image).where(Image.id == image_id, Image.user_id == user_id)
+        res = await db.execute(stmt)
+        image = res.scalar_one_or_none()
+
         if not image:
             logger.warning(f"Image {image_id} not found for deletion by user {user_id}")
-            return None
+            return
 
-        # Delete from database
         await db.delete(image)
         await db.commit()
-
         logger.info(f"Successfully deleted image {image_id} for user {user_id}")
-        return image
 
     except Exception as e:
         logger.error(f"Error deleting image {image_id} for user {user_id}: {str(e)}")
