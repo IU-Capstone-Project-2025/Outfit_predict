@@ -54,6 +54,12 @@ def get_qdrant_service():
     return qdrant_service
 
 
+def get_fashion_clip_encoder():
+    from app.ml.ml_models import fashion_clip_encoder
+
+    return fashion_clip_encoder
+
+
 router = APIRouter(prefix="/outfits", tags=["outfits"])
 
 
@@ -259,6 +265,7 @@ async def search_similar_outfits(
     current_user: User = Depends(get_current_user),
     image_search: ImageSearchEngine = Depends(get_image_search_engine),
     qdrant: QdrantService = Depends(get_qdrant_service),
+    fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
     """
     Search for similar outfits based on the user's wardrobe (all images in the DB).
@@ -322,6 +329,35 @@ async def search_similar_outfits(
             qdrant=qdrant,
         )
 
+        # After we have received the recommended outfits, let's assign styles to each of the received outfit
+        outfit_pil_images = []
+        outfit_db_records = []
+        for outfit in recommended_outfits:
+            try:
+                outfit_db_record = await outfit_crud.get_outfit_by_id_any(
+                    db, UUID(outfit.outfit_id)
+                )
+                if outfit_db_record:
+                    # Load image from MinIO
+                    obj = minio.get_stream(outfit_db_record.object_name)
+                    img_bytes = obj.read()
+                    obj.close()
+                    pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+                    outfit_pil_images.append(pil_img)
+                    outfit_db_records.append(outfit_db_record)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load outfit image {outfit.outfit_id}: {str(e)}"
+                )
+                continue
+
+        # Only assign styles if we successfully loaded images
+        style_labels = []
+        if outfit_pil_images:
+            style_labels = await image_search.assign_style_labels(
+                outfit_pil_images, fashion_encoder
+            )
+
         logger.info(
             f"Found {len(recommended_outfits)} similar outfit recommendations for user "
             f"{current_user.email}"
@@ -333,6 +369,13 @@ async def search_similar_outfits(
 
         # Convert to frontend-expected format
         result = []
+        style_map = {}
+
+        # Create a mapping from outfit_id to style_label
+        for idx, outfit_db_record in enumerate(outfit_db_records):
+            if idx < len(style_labels):
+                style_map[str(outfit_db_record.id)] = style_labels[idx]
+
         for rec in recommended_outfits:
             try:
                 outfit = await outfit_crud.get_outfit_by_id_any(db, UUID(rec.outfit_id))
@@ -344,6 +387,9 @@ async def search_similar_outfits(
                     request, "get_outfit_file", object_name=outfit.object_name
                 )
 
+                # Get style for this outfit, default to "other" if not found
+                style_label = style_map.get(str(outfit.id), "other")
+
                 result.append(
                     {
                         "outfit": {
@@ -351,6 +397,7 @@ async def search_similar_outfits(
                             "url": outfit_url,
                             "object_name": outfit.object_name,
                             "created_at": outfit.created_at.isoformat(),
+                            "style": style_label,  # Add style to the outfit object
                         },
                         "recommendation": {
                             "completeness_score": rec.completeness_score,
@@ -397,6 +444,7 @@ async def search_similar_outfits_subset(
     current_user: User = Depends(get_current_user),
     image_search: ImageSearchEngine = Depends(get_image_search_engine),
     qdrant: QdrantService = Depends(get_qdrant_service),
+    fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
     """
     Search for similar outfits based on a user-selected subset of wardrobe images.
@@ -480,9 +528,36 @@ async def search_similar_outfits_subset(
     recommended_outfits = await image_search.find_similar_outfit(
         images=wardrobe_images,
         wardrobe_object_names=wardrobe_object_names,
-        score_threshold=0.5,
+        score_threshold=0.35,
         qdrant=qdrant,
     )
+
+    # Assign styles to recommended outfits
+    outfit_pil_images = []
+    outfit_db_records = []
+    for outfit in recommended_outfits:
+        try:
+            outfit_db_record = await outfit_crud.get_outfit_by_id_any(
+                db, UUID(outfit.outfit_id)
+            )
+            if outfit_db_record:
+                # Load image from MinIO
+                obj = minio.get_stream(outfit_db_record.object_name)
+                img_bytes = obj.read()
+                obj.close()
+                pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+                outfit_pil_images.append(pil_img)
+                outfit_db_records.append(outfit_db_record)
+        except Exception as e:
+            logger.warning(f"Failed to load outfit image {outfit.outfit_id}: {str(e)}")
+            continue
+
+    # Only assign styles if we successfully loaded images
+    style_labels = []
+    if outfit_pil_images:
+        style_labels = await image_search.assign_style_labels(
+            outfit_pil_images, fashion_encoder
+        )
 
     logger.info(
         f"Found {len(recommended_outfits)} similar outfit recommendations for user "
@@ -494,6 +569,13 @@ async def search_similar_outfits_subset(
 
     # Convert to frontend-expected format
     result = []
+    style_map = {}
+
+    # Create a mapping from outfit_id to style_label
+    for idx, outfit_db_record in enumerate(outfit_db_records):
+        if idx < len(style_labels):
+            style_map[str(outfit_db_record.id)] = style_labels[idx]
+
     for rec in recommended_outfits:
         try:
             outfit = await outfit_crud.get_outfit_by_id_any(db, UUID(rec.outfit_id))
@@ -505,6 +587,9 @@ async def search_similar_outfits_subset(
                 request, "get_outfit_file", object_name=outfit.object_name
             )
 
+            # Get style for this outfit, default to "other" if not found
+            style_label = style_map.get(str(outfit.id), "other")
+
             result.append(
                 {
                     "outfit": {
@@ -512,6 +597,7 @@ async def search_similar_outfits_subset(
                         "url": outfit_url,
                         "object_name": outfit.object_name,
                         "created_at": outfit.created_at.isoformat(),
+                        "style": style_label,  # Add style to the outfit object
                     },
                     "recommendation": {
                         "completeness_score": rec.completeness_score,

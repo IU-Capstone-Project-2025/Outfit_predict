@@ -79,7 +79,9 @@ class MinioService:
         """Return an HTTPResponse-like stream object from MinIO."""
         logger.debug(f"Retrieving file stream from MinIO: {object_name}")
         try:
-            stream = self.client.get_object(self.bucket, object_name)
+            stream = self.client.get_object(
+                self.bucket, object_name, length=1024 * 1024 * 50
+            )  # 50 MB
             logger.debug(f"Successfully retrieved stream for object: {object_name}")
             return stream
         except Exception as e:

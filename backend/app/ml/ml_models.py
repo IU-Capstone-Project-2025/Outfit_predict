@@ -1,4 +1,5 @@
 from app.core.logging import get_logger
+from app.ml.encoding_models import FashionClipEncoder
 from app.ml.image_search import ImageSearchEngine
 from app.ml.outfit_processing import FashionSegmentationModel
 from app.storage.qdrant_client import QdrantService
@@ -33,6 +34,14 @@ try:
     logger.info("QdrantService initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize QdrantService: {str(e)}")
+    raise
+
+try:
+    logger.info("Loading FashionClipEncoder...")
+    fashion_clip_encoder = FashionClipEncoder()
+    logger.info("FashionClipEncoder loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load FashionClipEncoder: {str(e)}")
     raise
 
 logger.info("All ML models and services initialized successfully")
