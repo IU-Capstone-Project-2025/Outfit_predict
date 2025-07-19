@@ -10,6 +10,31 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { ImagePreviewModal, ProtectedImage } from "@/components/ImagePreviewModal";
 
+// Add a helper component for image with placeholder
+function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
+  const [loaded, setLoaded] = React.useState(false);
+  return (
+    <>
+      {!loaded && (
+        <img
+          src="/placeholder.svg"
+          alt="placeholder"
+          className={className + " absolute inset-0 w-full h-full object-contain z-0"}
+          style={{ background: 'transparent' }}
+        />
+      )}
+      <ProtectedImage
+        src={src}
+        alt={alt}
+        token={token}
+        className={className + (loaded ? '' : ' invisible')}
+        onLoad={() => setLoaded(true)}
+        {...props}
+      />
+    </>
+  );
+}
+
 export default function OutfitGeneratorMain() {
   const [files, setFiles] = useState<File[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
@@ -27,6 +52,9 @@ export default function OutfitGeneratorMain() {
     alt?: string;
     description?: string;
   } | null>(null);
+  const [selectedStyles, setSelectedStyles] = useState<string[]>([
+    "formal", "streetwear", "minimalist", "athleisure", "other"
+  ]); // All styles selected by default
 
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
 
@@ -193,30 +221,6 @@ export default function OutfitGeneratorMain() {
     }
   }, [showUploadMessage, token, user])
 
-  // Add a helper component for image with placeholder
-  function ImageWithPlaceholder({ src, alt, token, className, ...props }: any) {
-    const [loaded, setLoaded] = React.useState(false);
-    return (
-      <>
-        {!loaded && (
-          <img
-            src="/placeholder.svg"
-            alt="placeholder"
-            className={className + " absolute inset-0 w-full h-full object-contain z-0"}
-            style={{ background: 'transparent' }}
-          />
-        )}
-        <ProtectedImage
-          src={src}
-          alt={alt}
-          token={token}
-          className={className + (loaded ? '' : ' invisible')}
-          onLoad={() => setLoaded(true)}
-          {...props}
-        />
-      </>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
@@ -281,17 +285,69 @@ export default function OutfitGeneratorMain() {
               <p className="text-gray-400 text-lg">Here are personalized outfit combinations based on your wardrobe</p>
             </div>
 
-            {recommendations.length === 0 ? (
-              <div className="text-center text-gray-400 text-xl py-16">
-                <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-gray-500" />
+            {/* Style Filter Dropdown */}
+            <div className="mb-8">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-lg font-medium text-white">Filter by Style:</span>
+                <div className="flex flex-wrap gap-2">
+                  {["formal", "streetwear", "minimalist", "athleisure", "other"].map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => {
+                        setSelectedStyles(prev =>
+                          prev.includes(style)
+                            ? prev.filter(s => s !== style)
+                            : [...prev, style]
+                        );
+                      }}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                        selectedStyles.includes(style)
+                          ? "bg-white text-black shadow-lg"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      }`}
+                    >
+                      {style.charAt(0).toUpperCase() + style.slice(1)}
+                    </button>
+                  ))}
                 </div>
-                No outfit recommendations found. Try uploading more clothing items.
+                <div className="ml-auto">
+                  <button
+                    onClick={() => setSelectedStyles(["formal", "streetwear", "minimalist", "athleisure", "other"])}
+                    className="text-sm text-gray-400 hover:text-white transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-gray-500 mx-2">|</span>
+                  <button
+                    onClick={() => setSelectedStyles([])}
+                    className="text-sm text-gray-400 hover:text-white transition-colors"
+                  >
+                    Clear All
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-12">
-                {recommendations.map((rec, idx) => (
-                  <div key={idx} className="bg-gray-900/80 rounded-3xl p-8 border border-gray-700/50">
+            </div>
+
+            {(() => {
+              const filteredRecommendations = recommendations.filter(rec =>
+                selectedStyles.includes(rec.outfit?.style || "other")
+              );
+
+              return filteredRecommendations.length === 0 ? (
+                <div className="text-center text-gray-400 text-xl py-16">
+                  <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Sparkles className="w-8 h-8 text-gray-500" />
+                  </div>
+                  {recommendations.length === 0 ? (
+                    "No outfit recommendations found. Try uploading more clothing items."
+                  ) : (
+                    "No outfits match the selected styles. Try selecting different style filters."
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-12">
+                  {filteredRecommendations.map((rec, idx) => (
+                  <div key={rec.outfit.id} className="bg-gray-900/80 rounded-3xl p-8 border border-gray-700/50">
                     <div className="flex flex-col lg:flex-row gap-10 items-center">
                       {/* For the main outfit image */}
                       <div className="relative w-72 h-72 flex-shrink-0">
@@ -324,6 +380,11 @@ export default function OutfitGeneratorMain() {
                         <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2 z-20">
                           <span className="text-white text-sm font-medium">Outfit #{idx + 1}</span>
                         </div>
+                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 z-20">
+                          <span className="text-black text-xs font-semibold">
+                            {(rec.outfit?.style || "other").charAt(0).toUpperCase() + (rec.outfit?.style || "other").slice(1)}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex-1">
@@ -331,7 +392,7 @@ export default function OutfitGeneratorMain() {
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                           {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
                             rec.matchesWithUrls.map((match: any, i: number) => (
-                              <div key={i} className="text-center relative w-32 h-32 mx-auto">
+                              <div key={match.outfit_item_id || i} className="text-center relative w-32 h-32 mx-auto">
                                 {/* Placeholder */}
                                 <img src="/placeholder.svg" alt="placeholder" className="absolute inset-0 w-full h-full object-contain rounded-2xl z-0" />
                                 {/* Blurred background */}
@@ -373,9 +434,10 @@ export default function OutfitGeneratorMain() {
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
