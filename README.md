@@ -1,143 +1,162 @@
-<img src="logo.png" alt="Outfit Predict Logo">
+<img src="logo.png" alt="Outfit Predict Logo" width="200"/>
 
-Outfit Predict is a web platform for creating perfect outfits based on your wardrobe. It automatically searches outfits storage to assemble flawless looks from your wardrobe.
+# Outfit Predict
 
-[**Link to the deployed project**](https://outfitpredict.ru)
+**Outfit Predict** is a web platform designed to help you create the perfect outfit from your own wardrobe. Upload images of your clothes, and our AI-powered system will find and suggest stylish outfits you can wear.
+
+**[➡️ Visit the deployed project: outfitpredict.ru](https://outfitpredict.ru)**
+
+---
 
 ## 📋 Table of Contents
 
-- [🤵‍♂️ Problem & Audience](#️-problem--audience)
-- [💡 Proposed Workflow](#-proposed-workflow)
-- [🔪 Tech Stack](#-tech-stack)
-- [📥 Repository Setup](#-repository-setup)
-- [🛠️ Environment Setup](#️-environment-setup)
-- [🚀 Running the Application](#-running-the-application)
+- [✨ Features](#-features)
+- [🛠️ Tech Stack](#️-tech-stack)
+- [📂 Project Structure](#-project-structure)
+- [🚀 Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Cloning the Repository](#cloning-the-repository)
+  - [Environment Configuration](#environment-configuration)
+  - [Running the Application](#running-the-application)
+- [🧑‍💻 Development](#-development)
+- [⚙️ Backend](#️-backend)
+- [🚢 Deployment (CI/CD)](#-deployment-cicd)
+- [🔒 SSL Setup](#-ssl-setup)
 - [👥 Team](#-team)
-- [📊 Progress Table](#-progress-table)
-- [🛠️ Developing guide](#-developing-guide)
-## 🤵‍♂️ Problem & Audience
+- [📜 License](#-license)
 
-- **Problem**: Imagine a situation where you have a lot of items in your wardrobe and you want to decide what to wear. Scanning through the clothes and trying different combinations of them could take enormous amount of time. Still, this random approach will not lead you to perfect outfit.
-- **Audience**: Any person who cares about their outfit, watches current trends in fashion, and wants to look attractive.
+---
 
-## 💡 Proposed Workflow
+## ✨ Features
 
-1. User uploads clothes - from wardrobe, offline store, online shop, and others. This process of uploading more clothes could be continued, and the clothes could be deleted.
+- **Wardrobe Management**: Upload, view, and manage your clothing items.
+- **AI-Powered Outfit Suggestions**: Get outfit recommendations based on the clothes you own.
+- **Similarity Search**: Our system uses advanced similarity search to match your clothes with items in pre-styled outfits.
+- **Save Favorite Outfits**: Keep track of the outfits you love.
 
-2. User chooses the clothes from their app wardrobe that they want to compose outfit from.
+---
 
-3. From our side, we store already composed perfect outfits. They could be obtained through e-commerce sites, fashion sites, and any other source.
+## 🛠️ Tech Stack
 
-4. The system takes the clothes and runs optimized similarity search to match the items from person's wardrobe to items from outfits.
+| Category      | Technologies                                                                                              |
+|---------------|-----------------------------------------------------------------------------------------------------------|
+| **Frontend**  | [Next.js](https://nextjs.org/), [React](https://reactjs.org/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/) |
+| **Backend**   | [FastAPI](https://fastapi.tiangolo.com/), [Python](https://www.python.org/)                                |
+| **ML/AI**     | [PyTorch](https://pytorch.org/), [YOLO](https://github.com/ultralytics/yolov5), [CLIP](https://github.com/openai/CLIP) |
+| **Databases** | [PostgreSQL](https://www.postgresql.org/), [Qdrant](https://qdrant.tech/) (Vector DB), [MinIO](https://min.io/) (Object Storage) |
+| **DevOps**    | [Docker](https://www.docker.com/), [Docker Compose](https://docs.docker.com/compose/), [GitHub Actions](https://github.com/features/actions), [Nginx](https://www.nginx.com/) |
+| **Tooling**   | `pre-commit`, `commitizen` for code quality and standardized commits.                                     |
 
-5. User gets ranked list of possible outfits that could be composed from selected clothes.
+---
 
-## 🔪 Tech Stack
+## 📂 Project Structure
 
-| Category | Technologies |
-|----------|-------------|
-| **Frontend** | Next.js, React, TypeScript, Tailwind CSS |
-| **Backend** | FastAPI |
-| **Deep Learning Models** | YOLOv11 (Object Detection), CLIP (Image Embeddings) |
-| **Storage** | MinIO (Object Storage), Qdrant (Vector Database), PostgreSQL (Relational Database) |
-| **Containerization** | Docker, Docker Compose |
-| **Image Processing** | Pillow, OpenCV |
+Here is a high-level overview of the project's structure:
 
-## 📥 Repository Setup
+```
+.
+├── backend/            # FastAPI application, ML models, and business logic
+├── frontend/           # Next.js frontend application
+├── devops/             # Deployment scripts and CI/CD configuration
+├── ssl-setup/          # SSL certificate setup scripts
+├── datasets/           # Information about fashion datasets
+├── notebooks/          # Jupyter notebooks for experiments
+├── docker-compose.yml  # Main Docker Compose file for running the app
+└── README.md           # You are here!
+```
 
-This repository uses **Git LFS (Large File Storage)** for managing large machine learning model files (`.pt` files).
+---
+
+## 🚀 Getting Started
+
+Follow these steps to get the project running locally.
 
 ### Prerequisites
 
-Make sure you have Git LFS installed:
-
-```bash
-# Install Git LFS (if not already installed)
-# On Ubuntu/Debian:
-sudo apt install git-lfs
-
-# On macOS:
-brew install git-lfs
-
-# On Windows, download from: https://git-lfs.github.io/
-```
+- [**Git LFS**](https://git-lfs.github.com/): This project uses Git LFS to manage large model files.
+- [**Docker**](https://www.docker.com/products/docker-desktop/) and **Docker Compose**: For running the application in containers.
 
 ### Cloning the Repository
 
-**⚠️ Important**: Use Git LFS clone to properly download all model files:
+**Important**: You must use `git lfs clone` to download the large model files correctly.
 
 ```bash
-# Clone with Git LFS support
 git lfs clone https://github.com/IU-Capstone-Project-2025/Outfit_predict.git
-
-# Alternative: Regular clone followed by LFS pull
-git clone https://github.com/IU-Capstone-Project-2025/Outfit_predict.git
 cd Outfit_predict
-git lfs pull
 ```
 
-### Verify LFS Files
+If you already cloned the repository without LFS, run `git lfs pull` inside the repository.
 
-After cloning, verify that model files are properly downloaded:
+### Environment Configuration
 
-```bash
-# Check LFS files status
-git lfs ls-files
+1.  **Create an environment file** by copying the example:
+    ```bash
+    cp .env.example .env
+    ```
 
-# Model files should be actual files, not pointer files
-ls -lh backend/app/ml/*.pt
-```
+2.  **Update the `.env` file** with your configuration values. You will need to register at [Qdrant](https://qdrant.tech/) to get an API key.
 
-## 🛠️ Environment Setup
+### Running the Application
 
-1. Before running the application, you should register at [Qdrant](https://qdrant.tech/) for obtaining API key.
-
-2. Then you should replace fields related to Qdrant in `.env.example`
-
-3. After you have performed changes, copy the example environment file:
-```bash
-cp .env.example .env
-```
-
-4. Perform another updates on the `.env` file with your configuration values.
-
-## 🚀 Running the Application
-
-To run the application using Docker Compose:
+Once your `.env` file is configured, you can start the application using Docker Compose:
 
 ```bash
-# Build and start all services
-docker-compose up --build
-
-# To run in detached mode (in the background)
 docker-compose up --build -d
-
-# To stop all services
-docker-compose down
 ```
 
-The application will be available at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- MinIO Console: http://localhost:9001
+The application will be available at the following URLs:
+
+- **Frontend**: [http://localhost:3000](http://localhost:3000)
+- **Backend API**: [http://localhost:8000](http://localhost:8000)
+- **API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **MinIO Console**: [http://localhost:9001](http://localhost:9001)
+
+To stop the application, run `docker-compose down`.
+
+---
+
+## 🧑‍💻 Development
+
+We use `pre-commit` hooks to ensure code quality and `commitizen` for standardized commit messages. Please see our **[Development Guide (dev.md)](dev.md)** for detailed setup instructions.
+
+---
+
+## ⚙️ Backend
+
+The backend is a FastAPI application that serves the API and runs the machine learning models. For more details on the architecture, API endpoints, and how to run backend tests, see the **[Backend README (backend/README.md)](backend/README.md)**.
+
+---
+
+## 🚢 Deployment (CI/CD)
+
+This project is configured for Continuous Integration (CI) and Continuous Deployment (CD) using GitHub Actions. We have detailed guides for setting up the deployment environment.
+
+- **[Deployment Guide (devops/DEPLOYMENT_GUIDE.md)](devops/DEPLOYMENT_GUIDE.md)**
+- **[Deployment Setup (devops/DEPLOYMENT_SETUP.md)](devops/DEPLOYMENT_SETUP.md)**
+
+---
+
+## 🔒 SSL Setup
+
+For production, we use Nginx as a reverse proxy and Let's Encrypt for SSL certificates. The setup is automated with scripts.
+
+- **[SSL Setup Guide (ssl-setup/README.md)](ssl-setup/README.md)**
+
+---
 
 ## 👥 Team
 
-| Name | Role |
-|----------|-------------|
-| **Bulat Sharipov** | ML, Backend, Managing |
-| **Victor Mazanov** | Managing, Customer Development |
-| **Dinar Yakupov** | Frontend |
-| **Danil Fathutdinov** | ML, Backend |
-| **Artyom Grishin** | Product Designer |
-| **Remal Gareev** | Backend, DevOps |
+| Name                | Role                                 |
+|---------------------|--------------------------------------|
+| **Bulat Sharipov**  | Team Lead, ML Engineer, Backend Dev  |
+| **Victor Mazanov**  | Project Manager, Customer Development |
+| **Dinar Yakupov**   | Frontend Developer                   |
+| **Danil Fathutdinov**| ML Engineer, Backend Developer       |
+| **Artyom Grishin**  | Product Designer                     |
+| **Remal Gareev**    | Backend Developer, DevOps Engineer   |
 
-## 📊 Progress Table
+---
 
-| № | Week Topic | What Have Been Done |
-|------|------|---------------------|
-| Week 1 | Finding team & deciding project idea | - Researched project ideas<br>- Basic market research & user stories<br>- Basic backend development with database for wardrobe<br>- Trained YOLO model<br>- CLIP Embedder was included |
-| Week 2 | First CustDevs and market research, sub-MVP functionality | - Vector Database introduced<br>- Second table for outfits introduced<br>- Developed function for finding most similar outfits<br>- CustDev conducted<br>- Market Research and Concurrent research |
-| Week 3| Introducing MVP | - Developed and enhanced our algorithm for searching best outfits<br> -Developed migrations and deployed the project<br>- Conducted customer developments and created hypotheses for future features<br>- Developed frontend pages for checking wardrobe, uploading items, and making outfit predictions.
+## 📜 License
 
-## 🛠️ Developing guide [link](dev.md)
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

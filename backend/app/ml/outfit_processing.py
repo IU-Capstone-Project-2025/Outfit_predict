@@ -6,7 +6,6 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from app.ml.encoding_models import FashionClipEncoder
-from app.ml.image_captioning import generate_caption
 from PIL import Image as PILImage
 from ultralytics import SAM, YOLO
 
@@ -569,101 +568,6 @@ class FashionSegmentationModel:
             segment_images.append(segment_img)
 
         return segment_images, cloth_names
-
-    def get_segment_images_with_captions(
-        self, img_path: str, target_size: int = 640
-    ) -> List[dict]:
-        """
-        Generate standardized segment images and captions for each segment using Florence 2.
-
-        Returns:
-            List of dicts with keys: 'image', 'class_name', 'caption', 'short_caption'
-        """
-        segments, cloth_names = self.segment_clothes(img_path)
-        if len(segments) == 0:
-            return []
-        image = cv2.imread(img_path)
-        h, w = image.shape[:2]
-        bg_color = (128, 128, 128)
-        results = []
-        for segment, class_name in zip(segments, cloth_names):
-            if segment is None or len(segment) == 0:
-                continue
-            absolute_segment = segment.copy()
-            if np.any(np.isnan(absolute_segment)) or np.any(np.isinf(absolute_segment)):
-                continue
-            absolute_segment[:, 0] *= w
-            absolute_segment[:, 1] *= h
-            points = absolute_segment.reshape((-1, 1, 2)).astype(np.int32)
-            if len(points) < 3:
-                continue
-            if points.shape[1] != 1 or points.shape[2] != 2:
-                continue
-            if (
-                np.any(points < 0)
-                or np.any(points[:, 0, 0] >= w)
-                or np.any(points[:, 0, 1] >= h)
-            ):
-                points[:, 0, 0] = np.clip(points[:, 0, 0], 0, w - 1)
-                points[:, 0, 1] = np.clip(points[:, 0, 1], 0, h - 1)
-            mask = np.zeros((h, w), dtype=np.uint8)
-            try:
-                cv2.fillPoly(mask, [points], 255)
-            except cv2.error as e:
-                print(f"OpenCV fillPoly error: {e}. Skipping this segment.")
-                continue
-            masked_image = cv2.bitwise_and(image, image, mask=mask)
-            coords = np.where(mask > 0)
-            y_min, y_max = np.min(coords[0]), np.max(coords[0])
-            x_min, x_max = np.min(coords[1]), np.max(coords[1])
-            padding = 0.1
-            width = x_max - x_min
-            height = y_max - y_min
-            x_min_pad = max(0, int(x_min - padding * width))
-            x_max_pad = min(w, int(x_max + padding * width))
-            y_min_pad = max(0, int(y_min - padding * height))
-            y_max_pad = min(h, int(y_max + padding * height))
-            cropped = masked_image[y_min_pad:y_max_pad, x_min_pad:x_max_pad]
-            cropped_mask = mask[y_min_pad:y_max_pad, x_min_pad:x_max_pad]
-            rgba = cv2.cvtColor(cropped, cv2.COLOR_RGB2RGBA)
-            rgba[:, :, 3] = cropped_mask
-            scale_factor = 0.8 * target_size / max(rgba.shape[0], rgba.shape[1])
-            new_width = int(rgba.shape[1] * scale_factor)
-            new_height = int(rgba.shape[0] * scale_factor)
-            resized = cv2.resize(
-                rgba, (new_width, new_height), interpolation=cv2.INTER_AREA
-            )
-            result_img = np.zeros((target_size, target_size, 4), dtype=np.uint8)
-            result_img[:, :, :3] = bg_color
-            result_img[:, :, 3] = 255
-            x_offset = (target_size - new_width) // 2
-            y_offset = (target_size - new_height) // 2
-            alpha_s = resized[:, :, 3] / 255.0
-            alpha_l = 1.0 - alpha_s
-            for c in range(3):
-                result_img[
-                    y_offset : y_offset + new_height, x_offset : x_offset + new_width, c
-                ] = (
-                    alpha_s * resized[:, :, c]
-                    + alpha_l
-                    * result_img[
-                        y_offset : y_offset + new_height,
-                        x_offset : x_offset + new_width,
-                        c,
-                    ]
-                )
-            segment_img = cv2.cvtColor(result_img, cv2.COLOR_RGBA2RGB)
-            pil_img = PILImage.fromarray(segment_img)
-            caption_dict = generate_caption(pil_img)
-            results.append(
-                {
-                    "image": segment_img,
-                    "class_name": class_name,
-                    "caption": caption_dict.get("caption"),
-                    "short_caption": caption_dict.get("short_caption"),
-                }
-            )
-        return results
 
 
 def split_outfits_to_clothes(

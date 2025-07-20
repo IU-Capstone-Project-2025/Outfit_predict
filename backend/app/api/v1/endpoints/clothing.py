@@ -1,7 +1,5 @@
-import base64
 import os
 import shutil
-import traceback
 import zipfile
 from datetime import datetime
 from io import BytesIO
@@ -9,12 +7,10 @@ from io import BytesIO
 import cv2
 from app.core.logging import get_logger
 from app.deps import get_current_user
-from app.ml.image_search_google import search_images_google
-from app.ml.ml_models import fashion_segmentation_model
 from app.ml.outfit_processing import get_clothes_from_img
 from app.models.user import User
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 # Initialize logger for clothing operations
 logger = get_logger("app.api.clothing")
@@ -122,130 +118,3 @@ async def detect_clothes(
             shutil.rmtree(temp_dir)
             logger.debug(f"Cleaned up temporary directory: {temp_dir}")
         logger.info(f"Clothing detection completed for user {current_user.email}")
-
-
-@router.post("/detect-clothes-with-captions/")
-async def detect_clothes_with_captions(file: UploadFile = File(...)):
-    """
-    Endpoint to detect clothes and generate captions for each item.
-    Returns a JSON with name, caption, and base64 image for each detected clothing item.
-    """
-    temp_dir = None
-    try:
-        # Create temporary directory for this request
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        temp_dir = os.path.join("app/storage/clothing_detection", f"temp_{timestamp}")
-        os.makedirs(temp_dir, exist_ok=True)
-
-        # Save uploaded file temporarily
-        temp_path = os.path.join(temp_dir, file.filename)
-        with open(temp_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-
-        # Get detected clothes with captions
-        detected_clothes = fashion_segmentation_model.get_segment_images_with_captions(
-            temp_path
-        )
-
-        if not detected_clothes:
-            raise HTTPException(status_code=404, detail="No clothing items detected")
-
-        result = []
-        for item in detected_clothes:
-            # item: {"image": np.ndarray, "class_name": ..., "caption": ..., "short_caption": ...}
-            _, buffer = cv2.imencode(".png", item["image"])
-            img_base64 = base64.b64encode(buffer).decode("utf-8")  # type: ignore
-            # img_base64 = base64.b64encode(buffer).decode("utf-8")
-            result.append(
-                {
-                    "name": item["class_name"],
-                    "caption": item["caption"],
-                    "short_caption": item["short_caption"],
-                    "image_base64": img_base64,
-                }
-            )
-        return JSONResponse(content={"clothes": result})
-
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if temp_dir and os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
-
-
-@router.get("/search-google/")
-async def search_google_images(
-    query: str = Query(..., description="Text description of clothing"),
-    num: int = Query(5, ge=1, le=10),
-):
-    """
-    Search for similar clothing items on the internet using Google Custom Search API.
-    Returns a list of image URLs.
-    """
-    try:
-        results = search_images_google(query, num=num)
-        return {"results": results}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/detect-clothes-search-google/")
-async def detect_clothes_search_google(file: UploadFile = File(...)):
-    """
-    Endpoint: сегментирует вещи, генерирует описание (caption) и ищет по нему в Google Search.
-    Возвращает для каждой вещи: class_name, caption, short_caption, image_base64, google_results (список ссылок).
-    """
-
-    temp_dir = None
-    try:
-        # Create temporary directory for this request
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        temp_dir = os.path.join("app/storage/clothing_detection", f"temp_{timestamp}")
-        os.makedirs(temp_dir, exist_ok=True)
-
-        # Save uploaded file temporarily
-        temp_path = os.path.join(temp_dir, file.filename)
-        with open(temp_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-
-        # Сегментируем и получаем описания
-        detected_clothes = fashion_segmentation_model.get_segment_images_with_captions(
-            temp_path
-        )
-        if not detected_clothes:
-            raise HTTPException(status_code=404, detail="No clothing items detected")
-
-        result = []
-        for item in detected_clothes:
-            _, buffer = cv2.imencode(".png", item["image"])
-            img_base64 = base64.b64encode(buffer).decode("utf-8")  # type: ignore
-            # Поиск по short_caption (или caption)
-            google_results = []
-            try:
-                if item["short_caption"]:
-                    google_results = search_images_google(item["short_caption"])
-            except Exception:
-                google_results = []
-            result.append(
-                {
-                    "name": item["class_name"],
-                    "caption": item["caption"],
-                    "short_caption": item["short_caption"],
-                    "image_base64": img_base64,
-                    "google_results": google_results,
-                }
-            )
-        return JSONResponse(content={"clothes": result})
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if temp_dir and os.path.exists(temp_dir):
-            import shutil
-
-            shutil.rmtree(temp_dir)
