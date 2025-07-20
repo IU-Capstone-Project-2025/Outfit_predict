@@ -6,8 +6,8 @@ from io import BytesIO
 
 import cv2
 from app.core.logging import get_logger
-from app.deps import get_current_user
-from app.ml.outfit_processing import get_clothes_from_img
+from app.deps import get_current_user, get_fashion_segmentation_model
+from app.ml.outfit_processing import FashionSegmentationModel
 from app.models.user import User
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -20,7 +20,11 @@ router = APIRouter(prefix="/clothing", tags=["clothing"])
 
 @router.post("/detect-clothes/")
 async def detect_clothes(
-    file: UploadFile = File(...), current_user: User = Depends(get_current_user)
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    segmentation_model: FashionSegmentationModel = Depends(
+        get_fashion_segmentation_model
+    ),
 ):
     """
     Detects individual clothing items in an uploaded image and returns them as a ZIP archive.
@@ -65,14 +69,16 @@ async def detect_clothes(
 
         # Get detected clothes
         logger.info(f"Starting ML clothing detection for user {current_user.email}")
-        detected_clothes = get_clothes_from_img(temp_path)
+        segmented_clothes, cloth_names = segmentation_model.get_segment_images(
+            temp_path
+        )
 
-        if not detected_clothes:
+        if not segmented_clothes:
             logger.warning(f"No clothing items detected for user {current_user.email}")
             raise HTTPException(status_code=404, detail="No clothing items detected")
 
         logger.info(
-            f"Successfully detected {len(detected_clothes)} clothing items for user {current_user.email}"
+            f"Successfully detected {len(segmented_clothes)} clothing items for user {current_user.email}"
         )
 
         # Create zip file in memory
@@ -80,16 +86,18 @@ async def detect_clothes(
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zip_file:
             # Save each detected clothing item to the zip
-            for i, cloth in enumerate(detected_clothes):
+            for i, (cloth_img, cloth_name) in enumerate(
+                zip(segmented_clothes, cloth_names)
+            ):
                 try:
                     # Save cloth to temporary file
-                    cloth_name = cloth[0] if cloth[0] else f"clothing_item_{i}"
-                    cloth_path = os.path.join(temp_dir, f"{cloth_name}.png")
-                    cv2.imwrite(cloth_path, cloth[1])
+                    cloth_filename = f"{cloth_name}_{i}.png"
+                    cloth_path = os.path.join(temp_dir, cloth_filename)
+                    cv2.imwrite(cloth_path, cloth_img)
 
                     # Add to zip
-                    zip_file.write(cloth_path, f"{cloth_name}.png")
-                    logger.debug(f"Added {cloth_name}.png to ZIP file")
+                    zip_file.write(cloth_path, cloth_filename)
+                    logger.debug(f"Added {cloth_filename} to ZIP file")
 
                 except Exception as item_error:
                     logger.warning(

@@ -1,10 +1,9 @@
-import random
 import uuid
 from typing import List
 from uuid import UUID
 
 from app.models.outfit import Outfit
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -83,14 +82,9 @@ async def delete_outfit(
     return outfit
 
 
-async def get_all_outfit_ids(db: AsyncSession) -> List[str]:
-    """Fetches all outfit IDs from the database."""
-    result = await db.execute(select(Outfit.id))
+async def get_random_outfit_ids(db: AsyncSession, sample_size: int) -> List[str]:
+    """Fetches a random sample of outfit IDs from the database."""
+    result = await db.execute(
+        select(Outfit.id).order_by(func.random()).limit(sample_size)
+    )
     return [str(id) for id in result.scalars().all()]
-
-
-def sample_outfit_ids(outfit_ids: List[str], sample_size: int) -> List[str]:
-    """Randomly samples a subset of outfit IDs."""
-    if len(outfit_ids) <= sample_size:
-        return outfit_ids
-    return random.sample(outfit_ids, sample_size)
