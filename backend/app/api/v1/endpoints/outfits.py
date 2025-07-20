@@ -314,6 +314,7 @@ async def search_similar_outfits(
             wardrobe_object_names=wardrobe_object_names,
             sampled_outfit_ids=sampled_ids,
             qdrant=qdrant,
+            limit_outfits=10,
         )
 
         # After we have received the recommended outfits, let's assign styles to each of the received outfit
@@ -510,6 +511,7 @@ async def search_similar_outfits_subset(
         wardrobe_object_names=wardrobe_object_names,
         sampled_outfit_ids=sampled_ids,
         qdrant=qdrant,
+        limit_outfits=10,  # Explicitly pass limit
     )
 
     # Assign styles to recommended outfits

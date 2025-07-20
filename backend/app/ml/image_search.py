@@ -13,6 +13,49 @@ from PIL import Image
 # Initialize logger for image search operations
 logger = get_logger("app.ml.image_search")
 
+COMPLEMENT_OUTFIT_DICT = {
+    "sunglass": {
+        "product_link": "https://www.lamoda.ru/p/mp002xu03gxl/accs-grandvoyage-ochki-solntsezaschitnye/",
+        "image_link": "https://a.lmcdn.ru/product/M/P/MP002XU03GXL_12283458_1_v2.jpg",
+    },
+    "hat": {
+        "product_link": "https://www.lamoda.ru/p/mp002xb07r81/accs-lcwaikiki-shlyapa/",
+        "image_link": "https://a.lmcdn.ru/product/M/P/MP002XB07R81_28627118_1_v1_2x.jpg",
+    },
+    "jacket": {
+        "product_link": "https://www.lamoda.ru/p/mp002xm0bk4i/clothes-oodji-pidzhak/",
+        "image_link": "https://a.lmcdn.ru/product/M/P/MP002XM0BK4I_24439180_1_v1.jpeg",
+    },
+    "shirt": {
+        "product_link": "https://www.lamoda.ru/p/mp002xm0viqh/clothes-kanzler-rubashka/?promotion_provider_id=30fff14b-0d4c-4580-a353-68bf0c477993",  # noqa: E501
+        "image_link": "https://a.lmcdn.ru/product/M/P/MP002XM0VIQH_22043826_1_v1.jpeg",
+    },
+    "pants": {
+        "product_link": "https://www.lamoda.ru/p/mp002xm0bi76/clothes-hibio-bryuki/",
+        "image_link": "https://a.lmcdn.ru/product/M/P/MP002XM0BI76_24348073_1_v1.jpeg",
+    },
+    "shorts": {
+        "product_link": "https://www.lamoda.ru/p/mp002xm0d0gi/clothes-alpex-shorty-sportivnye/?promotion_provider_id=450cd72c-2db7-4ae2-8b3a-40c44a4dc010",  # noqa: E501
+        "image_link": "https://a.lmcdn.ru/product/M/P/MP002XM0D0GI_26852591_1_v2_2x.jpg",
+    },
+    "skirt": {
+        "product_link": "https://www.lamoda.ru/p/mp002xw1fogz/clothes-sela-yubka/",
+        "image_link": "https://a.lmcdn.ru/product/M/P/MP002XW1FOGZ_26465959_1_v3_2x.jpg",
+    },
+    "dress": {
+        "product_link": "https://www.lamoda.ru/p/mp002xw17r8r/clothes-sela-plate/",
+        "image_link": "https://a.lmcdn.ru/product/M/P/MP002XW17R8R_24390173_1_v1_2x.jpg",
+    },
+    "bag": {
+        "product_link": "https://www.lamoda.ru/p/rtlabh953303/bags-robertarossi-sumka-i-brelok/",
+        "image_link": "https://a.lmcdn.ru/product/R/T/RTLABH953303_21498981_1_v1.jpg",
+    },
+    "shoe": {
+        "product_link": "https://www.lamoda.ru/p/rtlacz458203/shoes-reebok-kedy/",
+        "image_link": "https://a.lmcdn.ru/product/R/T/RTLADZ894701_25971334_1_v1_2x.jpg",
+    },
+}
+
 
 class ImageSearchEngine:
     """
@@ -317,7 +360,16 @@ class ImageSearchEngine:
                 logger.debug(
                     f"No unused wardrobe item of type '{outfit_item_clothing_type}' found for outfit {outfit_id}"
                 )
-                outfit_scores.append(-10000)
+                suggestion = COMPLEMENT_OUTFIT_DICT.get(outfit_item_clothing_type)
+                if suggestion:
+                    matched_items.append(
+                        MatchedItem(
+                            outfit_item_id=str(outfit_item_id),
+                            score=0.5 * np.mean(outfit_scores),
+                            suggested_item_product_link=suggestion["product_link"],
+                            suggested_item_image_link=suggestion["image_link"],
+                        )
+                    )
 
         if not matched_items:
             return None
