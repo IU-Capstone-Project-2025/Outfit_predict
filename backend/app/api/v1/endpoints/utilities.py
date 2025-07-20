@@ -21,16 +21,17 @@ async def get_object_url(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """This endpoint is used to map the object name to url for the image
+    """
+    Retrieves the URL for a given object name.
 
-    Args:
-        request (Request): Request object
-        object_name (str): object_name of needed image to get url for
-        db (AsyncSession, optional): Database object session. Defaults to Depends(get_db).
-        current_user (User, optional): Current user objetc. Defaults to Depends(get_current_user).
+    This endpoint maps an object name to its corresponding image URL and thumbnail URL.
 
-    Returns:
-        ObjectURL: ObjectURL object with the url and thumbnail_url of the image
+    - **request**: The request object.
+    - **object_name**: The name of the object to retrieve the URL for.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns an object containing the URL and thumbnail URL for the specified object.
     """
     logger.info(
         f"Retrieving the image url for {current_user.email} (object_name: {object_name})"

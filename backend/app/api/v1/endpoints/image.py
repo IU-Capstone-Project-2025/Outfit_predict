@@ -47,6 +47,17 @@ async def list_images(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Lists all images uploaded by the current user.
+
+    - **request**: The request object.
+    - **skip**: The number of images to skip.
+    - **limit**: The maximum number of images to return.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns a list of image details.
+    """
     logger.info(
         f"Listing images for user {current_user.email} (skip={skip}, limit={limit})"
     )
@@ -84,8 +95,17 @@ async def generate_missing_thumbnails(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Generate thumbnails for existing images that don't have them yet.
-    Processes images in batches to avoid overwhelming the system.
+    Generates thumbnails for existing images that do not have one.
+
+    This endpoint processes images in batches to avoid overwhelming the system.
+
+    - **request**: The request object.
+    - **limit**: The maximum number of thumbnails to generate in one batch.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns a report on the number of thumbnails processed and failed.
     """
     logger.info(
         f"Generating missing thumbnails for user {current_user.email} (limit: {limit})"
@@ -231,7 +251,12 @@ async def get_thumbnail_status(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Get statistics about thumbnail coverage for the current user's images.
+    Retrieves statistics about thumbnail coverage for the current user's images.
+
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns a summary of total images, images with thumbnails, and coverage percentage.
     """
     logger.info(f"Getting thumbnail status for user {current_user.email}")
 
@@ -283,6 +308,19 @@ async def upload_image(
     current_user: User = Depends(get_current_user),
     fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
+    """
+    Uploads a new image, generates a thumbnail, and classifies the clothing type.
+
+    - **request**: The request object.
+    - **description**: An optional description for the image.
+    - **file**: The image file to upload.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+    - **fashion_encoder**: The FashionCLIP encoder for clothing classification.
+
+    Returns the details of the uploaded image.
+    """
     from app.ml.ml_models import image_search_engine, qdrant_service
 
     logger.info(f"Image upload started for user {current_user.email}")
@@ -388,6 +426,16 @@ async def get_image(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Retrieves the details of a specific image.
+
+    - **image_id**: The ID of the image to retrieve.
+    - **request**: The request object.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns the details of the specified image.
+    """
     logger.info(f"Getting image {image_id} for user {current_user.email}")
 
     try:
@@ -428,6 +476,16 @@ async def get_image_file(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Downloads the original file for a specific image.
+
+    - **image_id**: The ID of the image to download.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns the image file as a streaming response.
+    """
     logger.info(f"Downloading image file {image_id} for user {current_user.email}")
 
     try:
@@ -476,6 +534,17 @@ async def get_image_thumbnail(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Downloads the thumbnail for a specific image.
+
+    - **image_id**: The ID of the image to get the thumbnail for.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns the image thumbnail as a streaming response. If a thumbnail does not exist,
+    it falls back to the original image.
+    """
     logger.info(
         f"Downloading thumbnail for image {image_id} for user {current_user.email}"
     )
@@ -527,6 +596,19 @@ async def delete_image(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Deletes a specific image and its associated files.
+
+    This will remove the image from the database, MinIO storage (both original and thumbnail),
+    and the Qdrant vector index.
+
+    - **image_id**: The ID of the image to delete.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns a confirmation message upon successful deletion.
+    """
     from app.ml.ml_models import image_search_engine, qdrant_service
 
     logger.info(f"Deleting image {image_id} for user {current_user.email}")

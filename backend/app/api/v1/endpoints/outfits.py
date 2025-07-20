@@ -71,7 +71,17 @@ async def upload_outfit(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a new outfit image."""
+    """
+    Uploads a new outfit image.
+
+    - **request**: The request object.
+    - **file**: The outfit image to upload.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns the details of the uploaded outfit.
+    """
     logger.info(f"Outfit upload started for user {current_user.email}")
     logger.debug(
         f"Upload details - filename: {file.filename}, "
@@ -133,7 +143,17 @@ async def get_outfits(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a list of outfits."""
+    """
+    Retrieves a list of outfits for the current user.
+
+    - **request**: The request object.
+    - **skip**: The number of outfits to skip.
+    - **limit**: The maximum number of outfits to return.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns a list of outfit details.
+    """
     logger.info(
         f"Listing outfits for user {current_user.email} "
         f"(skip={skip}, limit={limit})"
@@ -172,7 +192,16 @@ async def get_outfit(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a specific outfit by ID."""
+    """
+    Retrieves a specific outfit by its ID.
+
+    - **request**: The request object.
+    - **outfit_id**: The ID of the outfit to retrieve.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns the details of the specified outfit.
+    """
     logger.info(f"Getting outfit {outfit_id} for user {current_user.email}")
 
     try:
@@ -213,7 +242,19 @@ async def get_outfit_file(
         get_current_user
     ),  # keep auth but drop ownership restriction
 ):
-    """Stream an outfit image from MinIO without user-ownership restriction."""
+    """
+    Streams an outfit image from MinIO without user-ownership restrictions.
+
+    This endpoint allows any authenticated user to access an outfit image,
+    which is necessary for sharing outfits across the platform.
+
+    - **object_name**: The name of the outfit object in MinIO.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns the outfit image file as a streaming response.
+    """
     # Fetch outfit irrespective of who uploaded it – outfits are shared globally.
     outfit = await outfit_crud.get_outfit_by_object_name_any(db, object_name)
     if not outfit:
@@ -268,9 +309,18 @@ async def search_similar_outfits(
     fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
     """
-    Search for similar outfits based on the user's wardrobe (all images in the DB).
+    Searches for similar outfits based on the user's entire wardrobe.
+
     This endpoint uses a two-stage search process to find outfits that can be
     best completed with items from the user's wardrobe.
+
+    - **request**: The request object.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+    - **image_search**: The image search engine.
+    - **qdrant**: The Qdrant service client.
+    - **fashion_encoder**: The FashionCLIP encoder.
 
     Returns a list of recommended outfits, including a completeness score and
     details on which wardrobe items match the outfit's components.
@@ -435,9 +485,21 @@ async def search_similar_outfits_subset(
     fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
     """
-    Search for similar outfits based on a user-selected subset of wardrobe images.
-    The user must provide a list of image object_names (recommended) or image IDs (UUIDs as strings).
-    Use GET /images/ to list all wardrobe images and their object_names/ids.
+    Searches for similar outfits based on a user-selected subset of wardrobe images.
+
+    The user must provide a list of image object names or image IDs.
+
+    - **request**: The request object.
+    - **body**: The request body containing the list of object names or image IDs.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+    - **image_search**: The image search engine.
+    - **qdrant**: The Qdrant service client.
+    - **fashion_encoder**: The FashionCLIP encoder.
+
+    Returns a list of recommended outfits, including a completeness score and
+    details on which wardrobe items match the outfit's components.
     """
     logger.info(
         f"Starting similar outfit search (subset) for user {current_user.email}"
@@ -606,9 +668,19 @@ async def upload_and_process_outfit(
     qdrant: QdrantService = Depends(get_qdrant_service),
 ):
     """
-    DEPRECATED: Use /split-outfit-to-clothes/ instead.
-    Upload an outfit image, store it, detect clothing, and add detected items to Qdrant.
-    Returns the created outfit metadata and detected clothing info.
+    **DEPRECATED**: This endpoint is deprecated. Use `/outfits/split-outfit-to-clothes/` instead.
+
+    Uploads an outfit image, stores it, detects clothing items, and adds them to the Qdrant index.
+
+    - **request**: The request object.
+    - **file**: The outfit image to upload.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+    - **image_search**: The image search engine.
+    - **qdrant**: The Qdrant service client.
+
+    Returns the created outfit metadata and information about the detected clothing items.
     """
 
     # Get the segmentation model directly (not through Depends)
@@ -633,7 +705,19 @@ async def delete_outfit(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete an outfit and its associated data from all storage systems."""
+    """
+    Deletes an outfit and its associated data from all storage systems.
+
+    This includes removing the outfit from the database, its file from MinIO,
+    and its associated vectors from Qdrant.
+
+    - **outfit_id**: The ID of the outfit to delete.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns a 204 No Content response on successful deletion.
+    """
     logger.info(f"Deleting outfit {outfit_id} for user {current_user.email}")
 
     try:
@@ -711,9 +795,20 @@ async def split_outfit_to_clothes(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Split an outfit image into individual clothing items and save them to the database.
-    Also adds the detected clothing items to Qdrant for similarity search.
-    Returns the same response as upload_and_process_outfit.
+    Splits an outfit image into individual clothing items and saves them to the database.
+
+    This endpoint also adds the detected clothing items to the Qdrant index for similarity search.
+
+    - **request**: The request object.
+    - **file**: The outfit image to process.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **segmentation_model**: The fashion segmentation model.
+    - **image_search**: The image search engine.
+    - **qdrant**: The Qdrant service client.
+    - **current_user**: The authenticated user.
+
+    Returns the outfit metadata along with information about the detected clothing items.
     """
     logger.info(f"Outfit split to clothes started for user {current_user.email}")
     logger.debug(

@@ -27,7 +27,16 @@ async def save_outfit(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Save an outfit to the user's saved collection."""
+    """
+    Saves an outfit to the user's collection.
+
+    - **outfit_data**: The details of the outfit to save, including the outfit ID,
+      completeness score, and matching items.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns the details of the newly saved outfit.
+    """
     logger.info(f"Saving outfit {outfit_data.outfit_id} for user {current_user.email}")
 
     try:
@@ -80,7 +89,18 @@ async def get_saved_outfits(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get all saved outfits for the current user with outfit details."""
+    """
+    Retrieves all saved outfits for the current user, including detailed information
+    about each outfit.
+
+    - **request**: The request object.
+    - **skip**: The number of saved outfits to skip.
+    - **limit**: The maximum number of saved outfits to return.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns a list of saved outfits with their full details.
+    """
     logger.info(
         f"Retrieving saved outfits for user {current_user.email} (skip={skip}, limit={limit})"
     )
@@ -149,7 +169,15 @@ async def delete_saved_outfit(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a saved outfit."""
+    """
+    Deletes a specific saved outfit from the user's collection.
+
+    - **saved_outfit_id**: The ID of the saved outfit to delete.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns a confirmation message upon successful deletion.
+    """
     logger.info(
         f"Deleting saved outfit {saved_outfit_id} for user {current_user.email}"
     )

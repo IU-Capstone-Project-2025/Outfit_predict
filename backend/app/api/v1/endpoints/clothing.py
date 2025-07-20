@@ -23,8 +23,17 @@ async def detect_clothes(
     file: UploadFile = File(...), current_user: User = Depends(get_current_user)
 ):
     """
-    Endpoint to detect clothes in an uploaded image.
-    Returns a zip file containing all detected clothing items.
+    Detects individual clothing items in an uploaded image and returns them as a ZIP archive.
+
+    This endpoint processes an image to identify and segment clothing items, such as shirts,
+    pants, and shoes. Each detected item is saved as a PNG image and packaged into a
+    single ZIP file.
+
+    - **file**: The uploaded image file (e.g., JPEG, PNG).
+    - **current_user**: The authenticated user making the request.
+
+    Returns a ZIP file containing the detected clothing items. If no items are detected,
+    a 404 error is returned.
     """
     logger.info(f"Clothing detection started for user {current_user.email}")
     logger.debug(
