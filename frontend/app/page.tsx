@@ -495,42 +495,72 @@ export default function OutfitGeneratorMain() {
                         <h3 className="text-2xl font-bold text-white mb-6">Matched Wardrobe Items</h3>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                           {rec.matchesWithUrls && rec.matchesWithUrls.length > 0 ? (
-                            rec.matchesWithUrls.map((match: any, i: number) => (
-                              <div key={match.outfit_item_id || i} className="text-center relative w-32 h-32 mx-auto">
-                                {/* Placeholder */}
-                                <img src="/placeholder.svg" alt="placeholder" className="absolute inset-0 w-full h-full object-contain rounded-2xl z-0" />
-                                {/* Blurred background */}
-                                <div className="absolute inset-0 rounded-2xl overflow-hidden z-0">
-                                  <ProtectedImage
-                                    src={match.wardrobe_image_url || "/placeholder.svg"}
-                                    alt=""
-                                    token={token}
-                                    className="w-full h-full object-cover scale-110 blur-lg"
-                                  />
-                                </div>
-                                {/* Main image */}
-                                <div
-                                  className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
-                                  onClick={() => setPreviewImage({
-                                    src: match.wardrobe_image_url || "/placeholder.svg",
-                                    thumbnailSrc: match.wardrobe_image_thumbnail_url,
-                                    alt: match.wardrobe_image_description || "Wardrobe item",
-                                    description: match.wardrobe_image_description
-                                  })}
-                                >
+                            rec.matchesWithUrls.map((match: any, i: number) => {
+                              const isSuggested = !match.wardrobe_image_object_name;
+                              const imageUrl = isSuggested ? match.suggested_item_image_link : match.wardrobe_image_url;
+                              const itemAlt = isSuggested ? "Suggested item" : (match.wardrobe_image_description || "Wardrobe item");
+
+                              const imageContainer = (
+                                <div className={`absolute inset-0 flex items-center justify-center z-10 ${isSuggested ? '' : 'cursor-pointer'}`}>
                                   <ImageWithPlaceholder
-                                    src={match.wardrobe_image_url || "/placeholder.svg"}
-                                    thumbnailSrc={match.wardrobe_image_thumbnail_url}
-                                    alt={match.wardrobe_image_description || "Wardrobe item"}
-                                    token={token}
+                                    src={imageUrl || "/placeholder.svg"}
+                                    thumbnailSrc={isSuggested ? undefined : match.wardrobe_image_thumbnail_url}
+                                    alt={itemAlt}
+                                    token={isSuggested ? null : token}
                                     className="w-full h-full object-contain rounded-2xl"
                                   />
                                 </div>
-                                <p className="relative z-20 text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate mt-2">
-                                  {match.wardrobe_image_description || ''}
-                                </p>
-                              </div>
-                            ))
+                              );
+
+                              return (
+                                <div key={match.outfit_item_id || i} className="text-center relative w-32 h-32 mx-auto">
+                                  {/* Placeholder */}
+                                  <img src="/placeholder.svg" alt="placeholder" className="absolute inset-0 w-full h-full object-contain rounded-2xl z-0" />
+
+                                  {/* Blurred background */}
+                                  <div className="absolute inset-0 rounded-2xl overflow-hidden z-0">
+                                    <ProtectedImage
+                                      src={imageUrl || "/placeholder.svg"}
+                                      alt=""
+                                      token={isSuggested ? null : token}
+                                      className="w-full h-full object-cover scale-110 blur-lg"
+                                    />
+                                  </div>
+
+                                  {isSuggested ? (
+                                      <a href={match.suggested_item_product_link} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+                                        {imageContainer}
+                                      </a>
+                                  ) : (
+                                    <div
+                                      className="w-full h-full"
+                                      onClick={() => setPreviewImage({
+                                        src: match.wardrobe_image_url || "/placeholder.svg",
+                                        thumbnailSrc: match.wardrobe_image_thumbnail_url,
+                                        alt: match.wardrobe_image_description || "Wardrobe item",
+                                        description: match.wardrobe_image_description
+                                      })}
+                                    >
+                                      {imageContainer}
+                                    </div>
+                                  )}
+
+                                  {/* Suggested Item Badge & Styling */}
+                                  {isSuggested && (
+                                    <>
+                                      <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-yellow-400 z-10 pointer-events-none"></div>
+                                      <div className="absolute top-1 right-1 bg-yellow-400/90 text-black text-[10px] font-bold px-2 py-0.5 rounded-full z-20">
+                                        SUGGESTED
+                                      </div>
+                                    </>
+                                  )}
+
+                                  <p className="relative z-20 text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate mt-2">
+                                    {isSuggested ? 'Suggested Item' : (match.wardrobe_image_description || '')}
+                                  </p>
+                                </div>
+                              )
+                            })
                           ) : (
                             <div className="col-span-full text-center text-gray-400 text-lg py-8">
                               No wardrobe items matched for this outfit.

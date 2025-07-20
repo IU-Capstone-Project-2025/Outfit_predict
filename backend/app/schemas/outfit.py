@@ -24,10 +24,12 @@ class OutfitRead(OutfitBase):
 
 
 class MatchedItem(BaseModel):
-    wardrobe_image_index: int
-    wardrobe_image_object_name: str
     outfit_item_id: str
     score: float
+    wardrobe_image_index: Optional[int] = None
+    wardrobe_image_object_name: Optional[str] = None
+    suggested_item_product_link: Optional[str] = None
+    suggested_item_image_link: Optional[str] = None
 
 
 class RecommendedOutfit(BaseModel):
