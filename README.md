@@ -33,6 +33,10 @@
 - **AI-Powered Outfit Suggestions**: Get outfit recommendations based on the clothes you own.
 - **Similarity Search**: Our system uses advanced similarity search to match your clothes with items in pre-styled outfits.
 - **Save Favorite Outfits**: Keep track of the outfits you love.
+- **Filter Suggested Outfits**: You can personalize outfits suggestions: filter them by several styles, such as formal style, streetwear, and etc.
+- **Clothes Suggestions**: Sometimes, only one additional item can make your outfit perfect. During outfit recommendations, we implemented a feature to suggest lacking item to compose this outfit.
+
+
 
 ---
 
@@ -42,7 +46,7 @@
 |---------------|-----------------------------------------------------------------------------------------------------------|
 | **Frontend**  | [Next.js](https://nextjs.org/), [React](https://reactjs.org/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/) |
 | **Backend**   | [FastAPI](https://fastapi.tiangolo.com/), [Python](https://www.python.org/)                                |
-| **ML/AI**     | [PyTorch](https://pytorch.org/), [YOLO](https://github.com/ultralytics/yolov5), [CLIP](https://github.com/openai/CLIP) |
+| **ML/AI**     | [PyTorch](https://pytorch.org/), [Transformers](https://huggingface.co/docs/transformers/en/index), [Ultralytics](https://www.ultralytics.com/), [YOLOv11](https://docs.ultralytics.com/models/yolo11/), [FashionCLIP](https://huggingface.co/patrickjohncyh/fashion-clip), [SAM](https://segment-anything.com/), [OpenCV](https://opencv.org/) |
 | **Databases** | [PostgreSQL](https://www.postgresql.org/), [Qdrant](https://qdrant.tech/) (Vector DB), [MinIO](https://min.io/) (Object Storage) |
 | **DevOps**    | [Docker](https://www.docker.com/), [Docker Compose](https://docs.docker.com/compose/), [GitHub Actions](https://github.com/features/actions), [Nginx](https://www.nginx.com/) |
 | **Tooling**   | `pre-commit`, `commitizen` for code quality and standardized commits.                                     |
