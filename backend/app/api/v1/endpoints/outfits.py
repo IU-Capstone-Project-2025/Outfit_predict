@@ -10,13 +10,16 @@ from app.core.logging import get_logger
 from app.core.url_utils import build_url
 from app.crud import image as crud_image
 from app.crud import outfit as outfit_crud
-from app.deps import get_current_user, get_db, get_minio
-from app.ml.image_search import ImageSearchEngine
-from app.ml.ml_models import (
-    fashion_segmentation_model,
-    image_search_engine,
-    qdrant_service,
+from app.deps import (
+    get_current_user,
+    get_db,
+    get_fashion_clip_encoder,
+    get_fashion_segmentation_model,
+    get_image_search_engine,
+    get_minio,
+    get_qdrant,
 )
+from app.ml.image_search import ImageSearchEngine
 from app.ml.outfit_processing import FashionSegmentationModel
 from app.models.user import User
 from app.schemas.outfit import OutfitRead
@@ -42,25 +45,96 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = get_logger("app.api.outfits")
 
 
-def get_fashion_segmentation_model():
-    return fashion_segmentation_model
-
-
-def get_image_search_engine():
-    return image_search_engine
-
-
-def get_qdrant_service():
-    return qdrant_service
-
-
-def get_fashion_clip_encoder():
-    from app.ml.ml_models import fashion_clip_encoder
-
-    return fashion_clip_encoder
-
-
 router = APIRouter(prefix="/outfits", tags=["outfits"])
+
+
+async def _prepare_recommendations(
+    request: Request,
+    db: AsyncSession,
+    minio: MinioService,
+    fashion_encoder,
+    recommended_outfits,
+):
+    outfit_pil_images = []
+    outfit_db_records = []
+    for outfit in recommended_outfits:
+        try:
+            outfit_db_record = await outfit_crud.get_outfit_by_id_any(
+                db, UUID(outfit.outfit_id)
+            )
+            if outfit_db_record:
+                # Load image from MinIO
+                obj = minio.get_stream(outfit_db_record.object_name)
+                img_bytes = obj.read()
+                obj.close()
+                pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+                outfit_pil_images.append(pil_img)
+                outfit_db_records.append(outfit_db_record)
+        except Exception as e:
+            logger.warning(f"Failed to load outfit image {outfit.outfit_id}: {str(e)}")
+            continue
+
+    # Only assign styles if we successfully loaded images
+    style_labels = []
+    if outfit_pil_images:
+        image_search = get_image_search_engine()
+        style_labels = await image_search.assign_style_labels(
+            outfit_pil_images, fashion_encoder
+        )
+
+    # Convert to frontend-expected format
+    result = []
+    style_map = {}
+
+    # Create a mapping from outfit_id to style_label
+    for idx, outfit_db_record in enumerate(outfit_db_records):
+        if idx < len(style_labels):
+            style_map[str(outfit_db_record.id)] = style_labels[idx]
+
+    for rec in recommended_outfits:
+        try:
+            outfit = await outfit_crud.get_outfit_by_id_any(db, UUID(rec.outfit_id))
+            if not outfit:
+                logger.warning(f"Outfit {rec.outfit_id} not found in database")
+                continue
+
+            outfit_url = build_url(
+                request, "get_outfit_file", object_name=outfit.object_name
+            )
+
+            # Get style for this outfit, default to "other" if not found
+            style_label = style_map.get(str(outfit.id), "other")
+
+            result.append(
+                {
+                    "outfit": {
+                        "id": str(outfit.id),
+                        "url": outfit_url,
+                        "object_name": outfit.object_name,
+                        "created_at": outfit.created_at.isoformat(),
+                        "style": style_label,  # Add style to the outfit object
+                    },
+                    "recommendation": {
+                        "completeness_score": rec.completeness_score,
+                        "matches": [
+                            {
+                                **match.model_dump(),
+                                "suggested_item_product_link": getattr(
+                                    match, "suggested_item_product_link", None
+                                ),
+                                "suggested_item_image_link": getattr(
+                                    match, "suggested_item_image_link", None
+                                ),
+                            }
+                            for match in rec.matches
+                        ],
+                    },
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Error processing outfit {rec.outfit_id}: {str(e)}")
+            continue
+    return result
 
 
 @router.post("/upload/", response_model=OutfitRead)
@@ -71,7 +145,17 @@ async def upload_outfit(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a new outfit image."""
+    """
+    Uploads a new outfit image.
+
+    - **request**: The request object.
+    - **file**: The outfit image to upload.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns the details of the uploaded outfit.
+    """
     logger.info(f"Outfit upload started for user {current_user.email}")
     logger.debug(
         f"Upload details - filename: {file.filename}, "
@@ -133,7 +217,17 @@ async def get_outfits(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a list of outfits."""
+    """
+    Retrieves a list of outfits for the current user.
+
+    - **request**: The request object.
+    - **skip**: The number of outfits to skip.
+    - **limit**: The maximum number of outfits to return.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns a list of outfit details.
+    """
     logger.info(
         f"Listing outfits for user {current_user.email} "
         f"(skip={skip}, limit={limit})"
@@ -172,7 +266,16 @@ async def get_outfit(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a specific outfit by ID."""
+    """
+    Retrieves a specific outfit by its ID.
+
+    - **request**: The request object.
+    - **outfit_id**: The ID of the outfit to retrieve.
+    - **db**: The database session.
+    - **current_user**: The authenticated user.
+
+    Returns the details of the specified outfit.
+    """
     logger.info(f"Getting outfit {outfit_id} for user {current_user.email}")
 
     try:
@@ -213,7 +316,19 @@ async def get_outfit_file(
         get_current_user
     ),  # keep auth but drop ownership restriction
 ):
-    """Stream an outfit image from MinIO without user-ownership restriction."""
+    """
+    Streams an outfit image from MinIO without user-ownership restrictions.
+
+    This endpoint allows any authenticated user to access an outfit image,
+    which is necessary for sharing outfits across the platform.
+
+    - **object_name**: The name of the outfit object in MinIO.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns the outfit image file as a streaming response.
+    """
     # Fetch outfit irrespective of who uploaded it – outfits are shared globally.
     outfit = await outfit_crud.get_outfit_by_object_name_any(db, object_name)
     if not outfit:
@@ -264,13 +379,22 @@ async def search_similar_outfits(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
     image_search: ImageSearchEngine = Depends(get_image_search_engine),
-    qdrant: QdrantService = Depends(get_qdrant_service),
+    qdrant: QdrantService = Depends(get_qdrant),
     fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
     """
-    Search for similar outfits based on the user's wardrobe (all images in the DB).
+    Searches for similar outfits based on the user's entire wardrobe.
+
     This endpoint uses a two-stage search process to find outfits that can be
     best completed with items from the user's wardrobe.
+
+    - **request**: The request object.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+    - **image_search**: The image search engine.
+    - **qdrant**: The Qdrant service client.
+    - **fashion_encoder**: The FashionCLIP encoder.
 
     Returns a list of recommended outfits, including a completeness score and
     details on which wardrobe items match the outfit's components.
@@ -297,12 +421,11 @@ async def search_similar_outfits(
 
         # 3. Sample 50 random outfit IDs from the database
         logger.debug("Sampling 50 random outfits from the database")
-        all_outfit_ids = await outfit_crud.get_all_outfit_ids(db)
-        if not all_outfit_ids:
+        sampled_ids = await outfit_crud.get_random_outfit_ids(db, 50)
+        if not sampled_ids:
             logger.warning("No outfits found in the database to sample from.")
             return []
 
-        sampled_ids = outfit_crud.sample_outfit_ids(all_outfit_ids, 50)
         logger.info(f"Sampled {len(sampled_ids)} outfits for evaluation.")
 
         # 4. Find similar outfits using the new V2 algorithm with pre-calculated embeddings
@@ -317,85 +440,9 @@ async def search_similar_outfits(
             limit_outfits=10,
         )
 
-        # After we have received the recommended outfits, let's assign styles to each of the received outfit
-        outfit_pil_images = []
-        outfit_db_records = []
-        for outfit in recommended_outfits:
-            try:
-                outfit_db_record = await outfit_crud.get_outfit_by_id_any(
-                    db, UUID(outfit.outfit_id)
-                )
-                if outfit_db_record:
-                    # Load image from MinIO
-                    obj = minio.get_stream(outfit_db_record.object_name)
-                    img_bytes = obj.read()
-                    obj.close()
-                    pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-                    outfit_pil_images.append(pil_img)
-                    outfit_db_records.append(outfit_db_record)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to load outfit image {outfit.outfit_id}: {str(e)}"
-                )
-                continue
-
-        # Only assign styles if we successfully loaded images
-        style_labels = []
-        if outfit_pil_images:
-            style_labels = await image_search.assign_style_labels(
-                outfit_pil_images, fashion_encoder
-            )
-
-        logger.info(
-            f"Found {len(recommended_outfits)} similar outfit recommendations for user "
-            f"{current_user.email}"
+        result = await _prepare_recommendations(
+            request, db, minio, fashion_encoder, recommended_outfits
         )
-        # Log completeness scores of recommended outfits for debugging
-        logger.debug(
-            f"Recommendation details: {[r.completeness_score for r in recommended_outfits]}"
-        )
-
-        # Convert to frontend-expected format
-        result = []
-        style_map = {}
-
-        # Create a mapping from outfit_id to style_label
-        for idx, outfit_db_record in enumerate(outfit_db_records):
-            if idx < len(style_labels):
-                style_map[str(outfit_db_record.id)] = style_labels[idx]
-
-        for rec in recommended_outfits:
-            try:
-                outfit = await outfit_crud.get_outfit_by_id_any(db, UUID(rec.outfit_id))
-                if not outfit:
-                    logger.warning(f"Outfit {rec.outfit_id} not found in database")
-                    continue
-
-                outfit_url = build_url(
-                    request, "get_outfit_file", object_name=outfit.object_name
-                )
-
-                # Get style for this outfit, default to "other" if not found
-                style_label = style_map.get(str(outfit.id), "other")
-
-                result.append(
-                    {
-                        "outfit": {
-                            "id": str(outfit.id),
-                            "url": outfit_url,
-                            "object_name": outfit.object_name,
-                            "created_at": outfit.created_at.isoformat(),
-                            "style": style_label,  # Add style to the outfit object
-                        },
-                        "recommendation": {
-                            "completeness_score": rec.completeness_score,
-                            "matches": [match.model_dump() for match in rec.matches],
-                        },
-                    }
-                )
-            except Exception as e:
-                logger.warning(f"Error processing outfit {rec.outfit_id}: {str(e)}")
-                continue
 
         logger.info(f"Returning {len(result)} formatted outfit recommendations")
         return result
@@ -431,13 +478,25 @@ async def search_similar_outfits_subset(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
     image_search: ImageSearchEngine = Depends(get_image_search_engine),
-    qdrant: QdrantService = Depends(get_qdrant_service),
+    qdrant: QdrantService = Depends(get_qdrant),
     fashion_encoder=Depends(get_fashion_clip_encoder),
 ):
     """
-    Search for similar outfits based on a user-selected subset of wardrobe images.
-    The user must provide a list of image object_names (recommended) or image IDs (UUIDs as strings).
-    Use GET /images/ to list all wardrobe images and their object_names/ids.
+    Searches for similar outfits based on a user-selected subset of wardrobe images.
+
+    The user must provide a list of image object names or image IDs.
+
+    - **request**: The request object.
+    - **body**: The request body containing the list of object names or image IDs.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+    - **image_search**: The image search engine.
+    - **qdrant**: The Qdrant service client.
+    - **fashion_encoder**: The FashionCLIP encoder.
+
+    Returns a list of recommended outfits, including a completeness score and
+    details on which wardrobe items match the outfit's components.
     """
     logger.info(
         f"Starting similar outfit search (subset) for user {current_user.email}"
@@ -497,12 +556,11 @@ async def search_similar_outfits_subset(
     )
 
     # Sample 50 random outfits
-    all_outfit_ids = await outfit_crud.get_all_outfit_ids(db)
-    if not all_outfit_ids:
+    sampled_ids = await outfit_crud.get_random_outfit_ids(db, 50)
+    if not sampled_ids:
         logger.warning("No outfits found in the database to sample from.")
         return []
 
-    sampled_ids = outfit_crud.sample_outfit_ids(all_outfit_ids, 50)
     logger.info(f"Sampled {len(sampled_ids)} outfits for evaluation.")
 
     # ML search logic using V2 with pre-calculated embeddings
@@ -514,116 +572,12 @@ async def search_similar_outfits_subset(
         limit_outfits=10,  # Explicitly pass limit
     )
 
-    # Assign styles to recommended outfits
-    outfit_pil_images = []
-    outfit_db_records = []
-    for outfit in recommended_outfits:
-        try:
-            outfit_db_record = await outfit_crud.get_outfit_by_id_any(
-                db, UUID(outfit.outfit_id)
-            )
-            if outfit_db_record:
-                # Load image from MinIO
-                obj = minio.get_stream(outfit_db_record.object_name)
-                img_bytes = obj.read()
-                obj.close()
-                pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-                outfit_pil_images.append(pil_img)
-                outfit_db_records.append(outfit_db_record)
-        except Exception as e:
-            logger.warning(f"Failed to load outfit image {outfit.outfit_id}: {str(e)}")
-            continue
-
-    # Only assign styles if we successfully loaded images
-    style_labels = []
-    if outfit_pil_images:
-        style_labels = await image_search.assign_style_labels(
-            outfit_pil_images, fashion_encoder
-        )
-
-    logger.info(
-        f"Found {len(recommended_outfits)} similar outfit recommendations for user "
-        f"{current_user.email} (subset)"
+    result = await _prepare_recommendations(
+        request, db, minio, fashion_encoder, recommended_outfits
     )
-    logger.debug(
-        f"Recommendation details: {[r.completeness_score for r in recommended_outfits]}"
-    )
-
-    # Convert to frontend-expected format
-    result = []
-    style_map = {}
-
-    # Create a mapping from outfit_id to style_label
-    for idx, outfit_db_record in enumerate(outfit_db_records):
-        if idx < len(style_labels):
-            style_map[str(outfit_db_record.id)] = style_labels[idx]
-
-    for rec in recommended_outfits:
-        try:
-            outfit = await outfit_crud.get_outfit_by_id_any(db, UUID(rec.outfit_id))
-            if not outfit:
-                logger.warning(f"Outfit {rec.outfit_id} not found in database")
-                continue
-
-            outfit_url = build_url(
-                request, "get_outfit_file", object_name=outfit.object_name
-            )
-
-            # Get style for this outfit, default to "other" if not found
-            style_label = style_map.get(str(outfit.id), "other")
-
-            result.append(
-                {
-                    "outfit": {
-                        "id": str(outfit.id),
-                        "url": outfit_url,
-                        "object_name": outfit.object_name,
-                        "created_at": outfit.created_at.isoformat(),
-                        "style": style_label,  # Add style to the outfit object
-                    },
-                    "recommendation": {
-                        "completeness_score": rec.completeness_score,
-                        "matches": [match.model_dump() for match in rec.matches],
-                    },
-                }
-            )
-        except Exception as e:
-            logger.warning(f"Error processing outfit {rec.outfit_id}: {str(e)}")
-            continue
 
     logger.info(f"Returning {len(result)} formatted outfit recommendations (subset)")
     return result
-
-
-@router.post("/upload-and-process/", response_model=OutfitRead, deprecated=True)
-async def upload_and_process_outfit(
-    request: Request,
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    minio: MinioService = Depends(get_minio),
-    current_user: User = Depends(get_current_user),
-    image_search: ImageSearchEngine = Depends(get_image_search_engine),
-    qdrant: QdrantService = Depends(get_qdrant_service),
-):
-    """
-    DEPRECATED: Use /split-outfit-to-clothes/ instead.
-    Upload an outfit image, store it, detect clothing, and add detected items to Qdrant.
-    Returns the created outfit metadata and detected clothing info.
-    """
-
-    # Get the segmentation model directly (not through Depends)
-    segmentation_model = get_fashion_segmentation_model()
-
-    return await split_outfit_to_clothes(
-        request=request,
-        file=file,
-        db=db,
-        minio=minio,
-        segmentation_model=segmentation_model,
-        image_search=image_search,
-        qdrant=qdrant,
-        current_user=current_user,
-    )
 
 
 @router.delete("/{outfit_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -633,7 +587,19 @@ async def delete_outfit(
     minio: MinioService = Depends(get_minio),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete an outfit and its associated data from all storage systems."""
+    """
+    Deletes an outfit and its associated data from all storage systems.
+
+    This includes removing the outfit from the database, its file from MinIO,
+    and its associated vectors from Qdrant.
+
+    - **outfit_id**: The ID of the outfit to delete.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user.
+
+    Returns a 204 No Content response on successful deletion.
+    """
     logger.info(f"Deleting outfit {outfit_id} for user {current_user.email}")
 
     try:
@@ -707,13 +673,24 @@ async def split_outfit_to_clothes(
         get_fashion_segmentation_model
     ),
     image_search: ImageSearchEngine = Depends(get_image_search_engine),
-    qdrant: QdrantService = Depends(get_qdrant_service),
+    qdrant: QdrantService = Depends(get_qdrant),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Split an outfit image into individual clothing items and save them to the database.
-    Also adds the detected clothing items to Qdrant for similarity search.
-    Returns the same response as upload_and_process_outfit.
+    Splits an outfit image into individual clothing items and saves them to the database.
+
+    This endpoint also adds the detected clothing items to the Qdrant index for similarity search.
+
+    - **request**: The request object.
+    - **file**: The outfit image to process.
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **segmentation_model**: The fashion segmentation model.
+    - **image_search**: The image search engine.
+    - **qdrant**: The Qdrant service client.
+    - **current_user**: The authenticated user.
+
+    Returns the outfit metadata along with information about the detected clothing items.
     """
     logger.info(f"Outfit split to clothes started for user {current_user.email}")
     logger.debug(

@@ -20,12 +20,6 @@ ENV TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers
 RUN python - <<EOF
 from huggingface_hub import snapshot_download
 snapshot_download(
-  "microsoft/Florence-2-base",
-  cache_dir="/root/.cache/huggingface/hub",
-  library_name="transformers",
-  library_version="4.x"
-)
-snapshot_download(
   "patrickjohncyh/fashion-clip",
   cache_dir="/root/.cache/huggingface/hub",
   library_name="transformers",

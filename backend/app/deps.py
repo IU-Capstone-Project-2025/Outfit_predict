@@ -3,6 +3,15 @@
 from app.core.config import Settings, get_settings
 from app.core.security import decode_access_token
 from app.db.database import get_session
+from app.ml.encoding_models import FashionClipEncoder
+from app.ml.image_search import ImageSearchEngine
+from app.ml.ml_models import (
+    fashion_clip_encoder,
+    fashion_segmentation_model,
+    image_search_engine,
+    qdrant_service,
+)
+from app.ml.outfit_processing import FashionSegmentationModel
 from app.models.user import User
 from app.schemas.user import TokenData
 from app.storage.minio_client import MinioService
@@ -23,7 +32,19 @@ def get_minio() -> MinioService:
 
 
 def get_qdrant() -> QdrantService:
-    return QdrantService()
+    return qdrant_service
+
+
+def get_fashion_segmentation_model() -> FashionSegmentationModel:
+    return fashion_segmentation_model
+
+
+def get_image_search_engine() -> ImageSearchEngine:
+    return image_search_engine
+
+
+def get_fashion_clip_encoder() -> FashionClipEncoder:
+    return fashion_clip_encoder
 
 
 get_db = get_session  # type: ignore[assignment]

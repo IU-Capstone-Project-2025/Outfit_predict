@@ -22,6 +22,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
 ):
+    """
+    Logs in a user and returns an access token.
+
+    - **form_data**: The user's credentials (username and password).
+    - **db**: The database session.
+
+    Returns a JWT access token for the authenticated user.
+    """
     logger.info(f"Login attempt for user: {form_data.username}")
 
     try:
@@ -56,6 +64,15 @@ async def register(
     db: AsyncSession = Depends(get_db),
     minio: MinioService = Depends(get_minio),
 ):
+    """
+    Registers a new user.
+
+    - **user_data**: The user's registration details.
+    - **db**: The database session.
+    - **minio**: The Minio service client (unused in this endpoint).
+
+    Returns the newly created user's information.
+    """
     logger.info(f"Registration attempt for email: {user_data.email}")
 
     try:
@@ -97,6 +114,13 @@ async def register(
 
 @router.get("/me", response_model=UserOut)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """
+    Retrieves information about the currently authenticated user.
+
+    - **current_user**: The authenticated user object.
+
+    Returns the current user's details.
+    """
     logger.debug(
         f"User info requested for user: {current_user.email} (ID: {current_user.id})"
     )
@@ -117,8 +141,18 @@ async def cleanup_user_data(
 ):
     """
     Clean up orphaned data for the current user across all storage systems.
-    This removes files in MinIO and vectors in Qdrant that are no longer
-    referenced in the PostgreSQL database.
+    This is a placeholder and does not perform any actual cleanup. It is intended
+    to demonstrate where cleanup logic would be implemented.
+
+    In a production environment, this endpoint would:
+    1. List all files in MinIO associated with the user.
+    2. List all vectors in Qdrant associated with the user.
+    3. Compare these with the user's data in the PostgreSQL database.
+    4. Remove any orphaned files or vectors.
+
+    - **db**: The database session.
+    - **minio**: The Minio service client.
+    - **current_user**: The authenticated user object.
     """
     from app.crud import image as crud_image
     from app.crud import outfit as outfit_crud

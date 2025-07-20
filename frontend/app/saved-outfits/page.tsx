@@ -13,10 +13,13 @@ import { toPng } from "html-to-image";
 import React, { useRef } from "react";
 
 interface MatchedItem {
-  wardrobe_image_index: number
-  wardrobe_image_object_name: string
+  wardrobe_image_index: number | null
+  wardrobe_image_object_name: string | null
+  clothing_type: string | null
+  external_image_url: string | null
+  suggested_item_product_link: string | null
   outfit_item_id: string
-  score: number
+  score: number | null
 }
 
 interface SavedOutfit {
@@ -394,9 +397,17 @@ export default function SavedOutfitsPage() {
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
                         {savedOutfit.matches && savedOutfit.matches.length > 0 ? (
                           savedOutfit.matches.map((match: MatchedItem, i: number) => {
-                            const wardrobeUrl = wardrobeUrls[match.wardrobe_image_object_name]
-                            return (
-                              <div key={match.outfit_item_id || i} className="text-center relative w-32 h-32 mx-auto">
+                            const isWardrobeItem = !!match.wardrobe_image_object_name;
+                            const wardrobeUrl = isWardrobeItem ? wardrobeUrls[match.wardrobe_image_object_name as string] : null;
+                            const isSuggested = !isWardrobeItem;
+
+                            const imageUrl = isWardrobeItem ? wardrobeUrl?.url : match.external_image_url;
+                            const thumbnailUrl = isWardrobeItem ? wardrobeUrl?.thumbnail_url : undefined;
+                            const itemAlt = isWardrobeItem ? wardrobeUrl?.description || "Wardrobe item" : match.clothing_type || "Suggested item";
+                            const itemDescription = isWardrobeItem ? wardrobeUrl?.description : `Suggested ${match.clothing_type}`;
+
+                            const imageContainer = (
+                              <div className="w-full h-full">
                                 {/* Placeholder */}
                                 <img
                                   src="/placeholder.svg"
@@ -406,33 +417,66 @@ export default function SavedOutfitsPage() {
                                 {/* Blurred background */}
                                 <div className="absolute inset-0 rounded-2xl overflow-hidden z-0">
                                   <ProtectedImage
-                                    src={wardrobeUrl?.url || "/placeholder.svg"}
+                                    src={imageUrl || "/placeholder.svg"}
                                     alt=""
                                     token={token}
                                     className="w-full h-full object-cover scale-110 blur-lg"
                                   />
                                 </div>
                                 {/* Main image */}
-                                <div
-                                  className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
-                                  onClick={() => setPreviewImage({
-                                    src: wardrobeUrl?.url || "/placeholder.svg",
-                                    thumbnailSrc: wardrobeUrl?.thumbnail_url,
-                                    alt: wardrobeUrl?.description || "Wardrobe item",
-                                    description: wardrobeUrl?.description
-                                  })}
-                                >
+                                <div className="absolute inset-0 flex items-center justify-center z-10">
                                   <ImageWithPlaceholder
-                                    src={wardrobeUrl?.url || "/placeholder.svg"}
-                                    thumbnailSrc={wardrobeUrl?.thumbnail_url}
-                                    alt={wardrobeUrl?.description || "Wardrobe item"}
+                                    src={imageUrl || "/placeholder.svg"}
+                                    thumbnailSrc={thumbnailUrl}
+                                    alt={itemAlt}
                                     token={token}
                                     className="w-full h-full object-contain rounded-2xl"
                                   />
                                 </div>
+                              </div>
+                            );
 
-                                <p className="relative z-20 text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate mt-2">
-                                  {wardrobeUrl?.description || ''}
+                            return (
+                              <div key={match.outfit_item_id || i} className="text-center relative w-32 h-32 mx-auto">
+                                {isSuggested && match.suggested_item_product_link ? (
+                                  <a
+                                    href={match.suggested_item_product_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block w-full h-full"
+                                  >
+                                    {imageContainer}
+                                  </a>
+                                ) : (
+                                  <div
+                                    className="w-full h-full cursor-pointer"
+                                    onClick={() => {
+                                      if (isWardrobeItem) {
+                                        setPreviewImage({
+                                          src: wardrobeUrl?.url || "/placeholder.svg",
+                                          thumbnailSrc: wardrobeUrl?.thumbnail_url,
+                                          alt: wardrobeUrl?.description || "Wardrobe item",
+                                          description: wardrobeUrl?.description
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    {imageContainer}
+                                  </div>
+                                )}
+
+                                {/* Suggested Item Badge & Styling */}
+                                {isSuggested && (
+                                  <>
+                                    <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-yellow-400 z-10 pointer-events-none"></div>
+                                    <div className="absolute top-1 right-1 bg-yellow-400/90 text-black text-[10px] font-bold px-2 py-0.5 rounded-full z-20 pointer-events-none">
+                                      SUGGESTED
+                                    </div>
+                                  </>
+                                )}
+
+                                <p className="pointer-events-none relative z-20 text-sm text-gray-300 font-medium max-w-[8rem] mx-auto truncate mt-2">
+                                  {isWardrobeItem ? wardrobeUrl?.description || '' : match.clothing_type || ''}
                                 </p>
                               </div>
                             )
