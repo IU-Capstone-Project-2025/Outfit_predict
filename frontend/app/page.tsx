@@ -467,7 +467,7 @@ export default function OutfitGeneratorMain() {
             <div className="max-w-4xl mx-auto mb-16">
               <div className="relative mb-12">
                 <div
-                  className={`border-2 border-dashed rounded-3xl p-20 text-center transition-all duration-300 ${
+                  className={`border-2 border-dashed rounded-3xl py-8 px-4 sm:py-10 sm:px-8 md:py-12 md:px-12 text-center transition-all duration-300 w-full max-w-xs sm:max-w-md md:max-w-xl lg:max-w-2xl mx-auto ${
                     isDragOver
                       ? "border-white/50 bg-gray-800/30 scale-[1.02]"
                       : "border-gray-600/50 bg-gray-900/20 backdrop-blur-sm hover:border-gray-500/50 hover:bg-gray-800/25"
@@ -476,19 +476,19 @@ export default function OutfitGeneratorMain() {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                 >
-                  <div className="w-24 h-24 bg-gray-800/50 rounded-3xl flex items-center justify-center mx-auto mb-8">
-                    <Upload className="w-12 h-12 text-gray-300" />
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 bg-gray-800/50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                    <Upload className="w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 text-gray-300" />
                   </div>
 
-                  <h2 className="text-3xl font-semibold text-white mb-6">
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold text-white mb-4">
                     Upload Your Clothing Images
                   </h2>
 
-                  <p className="text-gray-400 mb-10 text-xl leading-relaxed max-w-2xl mx-auto">
+                  <p className="text-gray-400 mb-6 text-base sm:text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
                     Drag and drop your photos here, or click to browse your
                     files
                     <br />
-                    <span className="text-base text-gray-500 mt-2 block">
+                    <span className="text-xs sm:text-sm md:text-base text-gray-500 mt-2 block">
                       Supports JPG and PNG formats • Multiple files allowed
                     </span>
                   </p>
@@ -503,10 +503,10 @@ export default function OutfitGeneratorMain() {
                     disabled={!user}
                   />
 
-                  <label htmlFor="file-upload">
+                  <label htmlFor="file-upload" className="block w-full">
                     <Button
                       variant="outline"
-                      className="cursor-pointer rounded-full border-2 border-gray-500 bg-transparent text-white hover:bg-white hover:text-black transition-all duration-300 px-12 py-5 text-lg font-semibold shadow-lg hover:shadow-xl"
+                      className="cursor-pointer rounded-full border-2 border-gray-500 bg-transparent text-white hover:bg-white hover:text-black transition-all duration-300 w-full max-w-xs mx-auto px-6 py-4 sm:px-10 sm:py-5 text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl"
                       asChild
                       disabled={!user}
                     >
